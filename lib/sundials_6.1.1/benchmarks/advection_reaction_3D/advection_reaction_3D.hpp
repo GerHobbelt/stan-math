@@ -100,7 +100,7 @@ struct UserData
   N_Vector vmask;
   N_Vector wmask;
 
-  /* problem paramaters */
+  /* problem parameters */
   realtype  xmax; /* maximum x value              */
   realtype  A;    /* concentration of species A   */
   realtype  B;    /* w source rate                */

@@ -12,7 +12,7 @@
  * SUNDIALS Copyright End
  * -----------------------------------------------------------------
  * This header files defines the ExecPolicy classes which
- * are utilized to determine SYCL kernel launch paramaters.
+ * are utilized to determine SYCL kernel launch parameters.
  * -----------------------------------------------------------------*/
 
 #ifndef _SUNDIALS_SYCLEXECPOLICIES_HPP

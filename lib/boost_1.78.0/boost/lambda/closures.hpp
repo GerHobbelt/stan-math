@@ -113,7 +113,7 @@ namespace lambda {
 //      where 'clos' is an instance of our closure 'my_closure' above.
 //      Take note that the usage above precludes locally declared
 //      classes. If my_closure is a locally declared type, we can still
-//      use its self_type as a paramater to closure_frame:
+//      use its self_type as a parameter to closure_frame:
 //
 //          closure_frame<my_closure::self_type> frame(clos);
 //
