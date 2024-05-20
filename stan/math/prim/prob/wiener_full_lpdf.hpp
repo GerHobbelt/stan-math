@@ -12,6 +12,14 @@ namespace internal {
 /**
  * Calculate the derivative of the wiener7 density w.r.t. 'sw'
  *
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_v type of drift rate
+ * @tparam T_w type of relative starting point
+ * @tparam T_sv type of inter-trial variability in v
+ * @tparam T_sw type of inter-trial variability in w
+ * @tparam T_err type of log error tolerance
+ *
  * @param y A scalar variable; the reaction time in seconds
  * @param a The boundary separation
  * @param v The drift rate
@@ -27,11 +35,9 @@ inline auto wiener7_grad_sw(const T_y& y, const T_a& a, const T_v& v,
                             const T_w& w, const T_sv& sv, const T_sw& sw,
                             T_err log_error) {
   auto low = w - sw / 2.0;
-  low = (0 > low) ? 0 : low;
   const auto lower_value
       = wiener5_density<GradientCalc::ON>(y, a, v, low, sv, log_error);
   auto high = w + sw / 2.0;
-  high = (1 < high) ? 1 : high;
   const auto upper_value
       = wiener5_density<GradientCalc::ON>(y, a, v, high, sv, log_error);
   return 0.5 * (lower_value + upper_value) / sw;
@@ -44,25 +50,30 @@ inline auto wiener7_grad_sw(const T_y& y, const T_a& a, const T_v& v,
  *
  * Specialisation for wiener5 functions
  *
- * @tparam Scalar type of scalars
- * @tparam GradSW Whether the wiener7 gradient function is passed
+ * @tparam GradSW Whether the gradient of sw is computed
  * @tparam F Type of Gradient/density functor
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_v type of drift rate
+ * @tparam T_w type of relative starting point
+ * @tparam T_sv type of inter-trial variability in v
+ * @tparam T_sw type of inter-trial variability in w
+ * @tparam T_err type of log error tolerance
  *
  * @param functor Gradient/density functor to apply
- * @param y A scalar variable; the reaction time in seconds
+ * @param y_diff A scalar variable; the reaction time in seconds without
+ * non-decision time
  * @param a The boundary separation
  * @param v The drift rate
  * @param w The relative starting point
- * @param t0 The non-decision time
  * @param sv The inter-trial variability of the drift rate
  * @param sw The inter-trial variability of the relative starting point
- * @param st0 The inter-trial variability of the non-decision time
  * @param log_error The log error tolerance
  * @return Functor applied to arguments
  */
-template <bool GradSW, typename F, typename T_y, typename T_a, typename T_v,
-          typename T_w, typename T_sv, typename T_sw, typename T_err,
-          std::enable_if_t<!GradSW>* = nullptr>
+template <GradientCalc GradSW, typename F, typename T_y, typename T_a,
+          typename T_v, typename T_w, typename T_sv, typename T_sw,
+          typename T_err, std::enable_if_t<!GradSW>* = nullptr>
 inline auto conditionally_grad_sw(F&& functor, T_y&& y_diff, T_a&& a, T_v&& v,
                                   T_w&& w, T_sv&& sv, T_sw&& sw,
                                   T_err&& log_error) {
@@ -76,26 +87,30 @@ inline auto conditionally_grad_sw(F&& functor, T_y&& y_diff, T_a&& a, T_v&& v,
  *
  * Specialisation for wiener7 functions
  *
- * @tparam Scalar type of scalars
- * @tparam GradSW Whether the wiener7 gradient function is passed
+ * @tparam GradSW Whether the gradient of sw is computed
  * @tparam F Type of Gradient/density functor
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_v type of drift rate
+ * @tparam T_w type of relative starting point
+ * @tparam T_sv type of inter-trial variability in v
+ * @tparam T_sw type of inter-trial variability in w
+ * @tparam T_err type of log error tolerance
  *
  * @param functor Gradient/density functor to apply
- * @param y_diff A scalar variable; the reaction time minus the non-decision in
- * seconds
+ * @param y_diff A scalar variable; the reaction time in seconds without
+ * non-decision time
  * @param a The boundary separation
  * @param v The drift rate
  * @param w The relative starting point
- * @param t0 The non-decision time
  * @param sv The inter-trial variability of the drift rate
  * @param sw The inter-trial variability of the relative starting point
- * @param st0 The inter-trial variability of the non-decision time
  * @param log_error The log error tolerance
  * @return Functor applied to arguments
  */
-template <bool GradSW, typename F, typename T_y, typename T_a, typename T_v,
-          typename T_w, typename T_sv, typename T_sw, typename T_err,
-          std::enable_if_t<GradSW>* = nullptr>
+template <GradientCalc GradSW, typename F, typename T_y, typename T_a,
+          typename T_v, typename T_w, typename T_sv, typename T_sw,
+          typename T_err, std::enable_if_t<GradSW>* = nullptr>
 inline auto conditionally_grad_sw(F&& functor, T_y&& y_diff, T_a&& a, T_v&& v,
                                   T_w&& w, T_sv&& sv, T_sw&& sw,
                                   T_err&& log_error) {
@@ -107,9 +122,10 @@ inline auto conditionally_grad_sw(F&& functor, T_y&& y_diff, T_a&& a, T_v&& v,
  * to the hcubature() function for calculating wiener7 parameters via
  * integration
  *
- * @tparam Scalar type of scalars
- * @tparam GradSW Whether the wiener7 gradient function is passed
+ * @tparam GradSW Whether the gradient of sw is computed
+ * @tparam GradW7 Whether the gradient of w is computed in the full model
  * @tparam Wiener7FunctorT Type of functor
+ * @tparam T_err Type of error in hcubature
  * @tparam Targs... Types of arguments in parameter pack
  *
  * @param wiener7_functor Gradient/density functor to apply
@@ -117,35 +133,33 @@ inline auto conditionally_grad_sw(F&& functor, T_y&& y_diff, T_a&& a, T_v&& v,
  * @param args Additional arguments to be passed to the hcubature function
  * @return Wiener7 density or gradient calculated by integration
  */
-template <bool GradSW, GradientCalc GradW7 = GradientCalc::OFF,
+template <GradientCalc GradSW, GradientCalc GradW7 = GradientCalc::OFF,
           typename Wiener7FunctorT, typename T_err, typename... TArgs>
 inline auto wiener7_integrate(const Wiener7FunctorT& wiener7_functor,
                               T_err&& hcubature_err, TArgs&&... args) {
-  const auto wiener7_integrand_impl =
-      [&wiener7_functor](auto&& x, auto&& y, auto&& a, auto&& v, auto&& w,
-                         auto&& t0, auto&& sv, auto&& sw, auto&& st0,
-                         auto&& log_error) {
-        using ret_t
-            = return_type_t<decltype(x), decltype(a), decltype(v), decltype(w),
-                            decltype(t0), decltype(sv), decltype(sw),
-                            decltype(st0), decltype(st0), decltype(log_error)>;
-        scalar_seq_view<decltype(x)> x_vec(x);
-        const auto sw_val = GradSW ? 0 : sw;
-        const auto new_w = w + sw_val * (x_vec[0] - 0.5);
-        const auto new_t0 = (sw_val != 0)
-                                ? ((st0 != 0) ? t0 + st0 * x_vec[1] : t0)
-                                : ((st0 != 0) ? t0 + st0 * x_vec[0] : t0);
-        if (y - new_t0 <= 0) {
-          return ret_t(0.0);
-        } else {
-          return ret_t(conditionally_grad_sw<GradSW>(
-              wiener7_functor, y - new_t0, a, v, new_w, sv, sw, log_error));
-        }
-      };
-  const auto functor = [&wiener7_integrand_impl](auto&&... int_args) {
-    return hcubature(wiener7_integrand_impl, int_args...);
+  const auto functor = [&wiener7_functor](auto&&... integration_args) {
+    return hcubature(
+        [&wiener7_functor](auto&& x, auto&& y, auto&& a, auto&& v, auto&& w,
+                           auto&& t0, auto&& sv, auto&& sw, auto&& st0,
+                           auto&& log_error) {
+          using ret_t = return_type_t<decltype(x), decltype(a), decltype(v),
+                                      decltype(w), decltype(t0), decltype(sv),
+                                      decltype(sw), decltype(st0),
+                                      decltype(st0), decltype(log_error)>;
+          scalar_seq_view<decltype(x)> x_vec(x);
+          const auto sw_val = GradSW ? 0 : sw;
+          const auto new_t0 = t0 + st0 * x_vec[(sw_val != 0) ? 1 : 0];
+          if (y - new_t0 <= 0) {
+            return ret_t(0.0);
+          } else {
+            const auto new_w = w + sw_val * (x_vec[0] - 0.5);
+            return ret_t(conditionally_grad_sw<GradSW>(
+                wiener7_functor, y - new_t0, a, v, new_w, sv, sw, log_error));
+          }
+        },
+        integration_args...);
   };
-  return estimate_with_err_check<0, GradW7, 8, GradientCalc::ON>(
+  return estimate_with_err_check<0, 8, GradW7, GradientCalc::ON>(
       functor, hcubature_err, args...);
 }
 }  // namespace internal
@@ -287,7 +301,7 @@ inline auto wiener7_integrate(const Wiener7FunctorT& wiener7_functor,
  * first-passage time distribution in Wiener diffusion models.
  * *Journal of Mathematical Psychology, 103*, 102550.
  * https://doi.org/10.1016/j.jmp.2021.102550
- * - Henrich, F., Hartmann, R., Pratz, V., Voss, A., & Klauer, K.C. (in press).
+ * - Henrich, F., Hartmann, R., Pratz, V., Voss, A., & Klauer, K.C. (2023).
  * The Seven-parameter Diffusion Model: An Implementation in Stan for Bayesian
  * Analyses. *Behavior Research Methods*.
  * - Navarro, D. J., & Fuss, I. G. (2009). Fast and accurate calculations for
@@ -362,9 +376,6 @@ inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
   check_finite(function_name, "Inter-trial variability in Nondecision time",
                st0_val);
 
-  if (size_zero(y, a, v, w, t0) || size_zero(sv, sw, st0)) {
-    return ret_t(0);
-  }
   const size_t N = max_size(y, a, v, w, t0, sv, sw, st0);
   if (!N) {
     return ret_t(0);
@@ -381,11 +392,13 @@ inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
 
   for (size_t i = 0; i < N_y_t0; ++i) {
     if (y_vec[i] <= t0_vec[i]) {
-      std::stringstream msg;
-      msg << ", but must be greater than nondecision time = " << t0_vec[i];
-      std::string msg_str(msg.str());
-      throw_domain_error(function_name, "Random variable", y_vec[i], " = ",
-                         msg_str.c_str());
+      [&]() STAN_COLD_PATH {
+        std::stringstream msg;
+        msg << ", but must be greater than nondecision time = " << t0_vec[i];
+        std::string msg_str(msg.str());
+        throw_domain_error(function_name, "Random variable", y_vec[i], " = ",
+                           msg_str.c_str());
+      }();
     }
   }
   size_t N_beta_sw = max_size(w, sw);
@@ -413,15 +426,14 @@ inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
       }();
     }
   }
-
-  const T_partials_return log_error_density
-      = log(1e-6);                                 // precision for density
-  const auto error_bound = precision_derivatives;  // precision for
-  // derivatives (controllable by user)
+  // precision for density
+  const T_partials_return log_error_density = log(1e-6);
+  // precision for derivatives (controllable by user)
+  const auto error_bound = precision_derivatives;
   const auto log_error_derivative = log(error_bound);
   const T_partials_return absolute_error_hcubature = 0.0;
-  const T_partials_return relative_error_hcubature
-      = .9 * error_bound;  // eps_rel(Integration)
+  // eps_rel(Integration)
+  const T_partials_return relative_error_hcubature = .9 * error_bound;
   const T_partials_return log_error_absolute = log(1e-12);
   const int maximal_evaluations_hcubature = 6000;
   T_partials_return log_density = 0.0;
@@ -471,7 +483,6 @@ inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
             maximal_evaluations_hcubature, absolute_error_hcubature,
             relative_error_hcubature / 2);
     log_density += log(density);
-
     hcubature_err = log_error_absolute - log_error_derivative
                     + log(fabs(density)) + LOG_TWO + 1;
 
@@ -544,8 +555,8 @@ inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
         partials<6>(ops_partials)[i] = 0;
       } else {
         if (st0_value == 0) {
-          derivative = internal::estimate_with_err_check<6, GradientCalc::OFF,
-                                                         0, GradientCalc::ON>(
+          derivative = internal::estimate_with_err_check<
+              6, 0, GradientCalc::OFF, GradientCalc::ON>(
               [](auto&&... args) { return internal::wiener7_grad_sw(args...); },
               hcubature_err, y_value - t0_value, a_value, v_value, w_value,
               sv_value, sw_value, log_error_absolute - LOG_TWO);
@@ -569,7 +580,7 @@ inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
       } else {
         const T_partials_return t0_st0 = t0_value + st0_value;
         if (sw_value == 0) {
-          f = internal::estimate_with_err_check<5, GradientCalc::OFF, 0,
+          f = internal::estimate_with_err_check<5, 0, GradientCalc::OFF,
                                                 GradientCalc::ON>(
               [](auto&&... args) {
                 return internal::wiener5_density<GradientCalc::ON>(args...);

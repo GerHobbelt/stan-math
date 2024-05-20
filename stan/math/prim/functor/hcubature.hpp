@@ -24,16 +24,17 @@
 #include <stan/math/prim/fun/fmax.hpp>
 #include <stan/math/prim/fun/max.hpp>
 #include <stan/math/prim/functor/apply.hpp>
+#include <stan/math/prim/functor/integrate_1d.hpp>
 #include <queue>
 #include <tuple>
 #include <iostream>
+#include <boost/math/quadrature/gauss_kronrod.hpp>
 
 namespace stan {
 namespace math {
 
 namespace internal {
 
-// Why are there 8 things in xd7? 8th element never used
 static constexpr std::array<double, 8> xd7{
     -9.9145537112081263920685469752598e-01,
     -9.4910791234275852452618968404809e-01,
@@ -41,8 +42,7 @@ static constexpr std::array<double, 8> xd7{
     -7.415311855993944398638647732811e-01,
     -5.8608723546769113029414483825842e-01,
     -4.0584515137739716690660641207707e-01,
-    -2.0778495500789846760068940377309e-01,
-    0.0};
+    -2.0778495500789846760068940377309e-01};
 
 static constexpr std::array<double, 8> wd7{
     2.2935322010529224963732008059913e-02,
@@ -88,7 +88,6 @@ inline void combination(Eigen::Matrix<int, Eigen::Dynamic, 1>& c, const int dim,
     }
     k = k - r;
   }
-  // Assumes p cannot be 0
   c[p - 1] = (p > 1) ? c[p - 2] + x - k : x;
 }
 
@@ -167,10 +166,49 @@ inline Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> signcombos(
 }
 
 /**
+ * Compute the points and weights corresponding to a [dim]-dimensional
+ * Genz-Malik cubature rule
+ *
+ * @param[in,out] points points for the last 4 GenzMalik weights
+ * @param[in,out] weights weights for the 5 terms in the GenzMalik rule
+ * @param[in,out] weights_low_deg weights for the embedded lower-degree rule
+ * @param dim dimension
+ */
+
+inline std::tuple<
+    std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 4>,
+    Eigen::Matrix<double, 5, 1>, Eigen::Matrix<double, 4, 1>>
+make_GenzMalik(const int dim) {
+  std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 4> points;
+  Eigen::Matrix<double, 5, 1> weights;
+  Eigen::Matrix<double, 4, 1> weights_low_deg;
+  double twopn = std::pow(2, dim);
+  weights[0]
+      = twopn * ((12824.0 - 9120.0 * dim + 400.0 * dim * dim) * 1.0 / 19683.0);
+  weights[1] = twopn * (980.0 / 6561.0);
+  weights[2] = twopn * ((1820.0 - 400.0 * dim) * 1.0 / 19683.0);
+  weights[3] = twopn * (200.0 / 19683.0);
+  weights[4] = 6859.0 / 19683.0;
+  weights_low_deg[0] = twopn * ((729 - 950 * dim + 50 * dim * dim) * 1.0 / 729);
+  weights_low_deg[1] = twopn * (245.0 / 486);
+  weights_low_deg[2] = twopn * ((265.0 - 100.0 * dim) * 1.0 / 1458.0);
+  weights_low_deg[3] = twopn * (25.0 / 729.0);
+  points[0] = combos(1, std::sqrt(9.0 * 1.0 / 70.0), dim);
+  double l3 = std::sqrt(9.0 * 1.0 / 10.0);
+  points[1] = combos(1, l3, dim);
+  points[2] = signcombos(2, l3, dim);
+  points[3] = signcombos(dim, std::sqrt(9.0 * 1.0 / 19.0), dim);
+  return std::make_tuple(std::move(points), std::move(weights),
+                         std::move(weights_low_deg));
+}
+
+/**
  * Compute the integral of the function to be integrated (integrand) from a to b
  * for one dimension.
  *
  * @tparam F type of the integrand
+ * @tparam T_a type of lower limit of integration
+ * @tparam T_b type of upper limit of integration
  * @tparam ParsPairT type of the pair of parameters for the integrand
  * @param integrand function to be integrated
  * @param a lower limit of integration
@@ -212,52 +250,16 @@ inline auto gauss_kronrod(const F& integrand, const T_a a, const T_b b,
 }
 
 /**
- * Compute the points and weights corresponding to a [dim]-dimensional
- * Genz-Malik cubature rule
- *
- * @param[in,out] points points for the last 4 GenzMalik weights
- * @param[in,out] weights weights for the 5 terms in the GenzMalik rule
- * @param[in,out] weights_low_deg weights for the embedded lower-degree rule
- * @param dim dimension
- */
-
-inline std::tuple<
-    std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 4>,
-    Eigen::Matrix<double, 5, 1>, Eigen::Matrix<double, 4, 1>>
-make_GenzMalik(const int dim) {
-  std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 4> points;
-  Eigen::Matrix<double, 5, 1> weights;
-  Eigen::Matrix<double, 4, 1> weights_low_deg;
-  double twopn = std::pow(2, dim);
-  weights[0]
-      = twopn * ((12824.0 - 9120.0 * dim + 400.0 * dim * dim) * 1.0 / 19683.0);
-  weights[1] = twopn * (980.0 / 6561.0);
-  weights[2] = twopn * ((1820.0 - 400.0 * dim) * 1.0 / 19683.0);
-  weights[3] = twopn * (200.0 / 19683.0);
-  weights[4] = 6859.0 / 19683.0;
-  weights_low_deg[0] = twopn * ((729 - 950 * dim + 50 * dim * dim) * 1.0 / 729);
-  weights_low_deg[1] = twopn * (245.0 / 486);
-  weights_low_deg[2] = twopn * ((265.0 - 100.0 * dim) * 1.0 / 1458.0);
-  weights_low_deg[3] = twopn * (25.0 / 729.0);
-  points[0] = combos(1, std::sqrt(9.0 * 1.0 / 70.0), dim);
-  double l3 = std::sqrt(9.0 * 1.0 / 10.0);
-  points[1] = combos(1, l3, dim);
-  points[2] = signcombos(2, l3, dim);
-  points[3] = signcombos(dim, std::sqrt(9.0 * 1.0 / 19.0), dim);
-  return std::make_tuple(std::move(points), std::move(weights),
-                         std::move(weights_low_deg));
-}
-
-/**
  * Compute the integral of the function to be integrated (integrand) from a to b
  * for more than one dimensions.
  *
  * @tparam F type of the integrand
+ * @tparam GenzMalik type of -----
+ * @tparam T_a type of lower limit of integration
+ * @tparam T_b type of upper limit of integration
  * @tparam ParsTupleT type of the tuple of parameters for the integrand
  * @param[out] integrand function to be integrated
- * @param[in] points points for the last 4 GenzMalik weights
- * @param[in] weights weights for the 5 terms in the GenzMalik rule
- * @param[in] weights_low_deg weights for the embedded lower-degree rule
+ * @param[in] genz_malik tuple of GenzMalik weights
  * @param dim dimension of the multidimensional integral
  * @param a lower limit of integration
  * @param b upper limit of integration
@@ -351,8 +353,8 @@ inline auto integrate_GenzMalik(const F& integrand, const GenzMalik& genz_malik,
  * Compute the integral of the function to be integrated (integrand) from a to b
  * for more than one dimensions.
  *
- * @tparam Vec1 Type of vector 1
- * @tparam Vec2 Type of vector 2
+ * @tparam T_a Type of return_type_t 1
+ * @tparam T_b Type of return_type_t 2
  * @param a lower bounds of the integral
  * @param b upper bounds of the integral
  * @param I value of the integral
@@ -375,59 +377,43 @@ struct Box {
 }  // namespace internal
 
 /**
- * Compute the dim-dimensional integral of the function \f$f\f$ from \f$a\f$ to
- \f$b\f$ within
+ * Compute the [dim]-dimensional integral of the function \f$f\f$ from \f$a\f$
+ to \f$b\f$ within
  * specified relative and absolute tolerances or maximum number of evaluations.
  * \f$a\f$ and \f$b\f$ can be finite or infinite and should be given as vectors.
  *
- * The prototype for \f$f\f$ is:
- \verbatim
-   template <typename T_x, typename T_p>
-   stan::return_type_t<T_x, T_p> f(const T_x& x, const T_p& p) {
-   using T_x_ref = stan::ref_type_t<T_x>;
-   T_x_ref x_ref = x;
-   stan::scalar_seq_view<T_x_ref> x_vec(x_ref);
-   my_params* pars = static_cast<my_params*>(p);
-   type_1 var_1 = (pars->par_1);
-   return ;
-   }
- \endverbatim
- *
- * The parameters can be handed over to f as a struct:
- \verbatim
-  struct my_params {
-  type_1 par_1;
-  type_2 par_2;
-  };
- \endverbatim
- *
  * @tparam F Type of f
- * @tparam T_pars Type of paramete-struct
+ * @tparam T_a Type of lower limit of integration
+ * @tparam T_b Type of upper limit of integration
+ * @tparam ParsTuple Type of parameter-tuple
+ * @tparam TAbsErr Type of absolute error
+ * @tparam TRelErr Type of relative error
  *
  * @param integrand a functor with signature given above
- * @param pars parameters to be passed to f as a struct
+ * @param pars parameters to be passed to f as a tuple
  * @param dim dimension of the integral
  * @param a lower limit of integration as vector
  * @param b upper limit of integration as vector
  * @param max_eval maximal number of evaluations
  * @param reqAbsError absolute error
  * @param reqRelError relative error as vector
- * @param val correct value of integral
  *
- * @return The value of the dim-dimensional integral of \f$f\f$ from \f$a\f$ to
- \f$b\f$.
+ * @return The value of the [dim]-dimensional integral of \f$f\f$ from \f$a\f$
+ to \f$b\f$.
  * @throw std::domain_error no errors will be thrown.
  */
-template <typename Scalar, typename F, typename T_a, typename T_b,
-          typename ParsTuple>
-inline Scalar hcubature(const F& integrand, const ParsTuple& pars,
-                        const int dim,
-                        const Eigen::Matrix<T_a, Eigen::Dynamic, 1>& a,
-                        const Eigen::Matrix<T_b, Eigen::Dynamic, 1>& b,
-                        const int max_eval, const Scalar reqAbsError,
-                        const Scalar reqRelError) {
+template <typename F, typename T_a, typename T_b, typename ParsTuple,
+          typename TAbsErr, typename TRelErr>
+inline auto hcubature(const F& integrand, const ParsTuple& pars, const int dim,
+                      const Eigen::Matrix<T_a, Eigen::Dynamic, 1>& a,
+                      const Eigen::Matrix<T_b, Eigen::Dynamic, 1>& b,
+                      const int max_eval, const TAbsErr reqAbsError,
+                      const TRelErr reqRelError) {
+  using Scalar = return_type_t<ParsTuple, T_a, T_b, TAbsErr, TRelErr>;
   using eig_vec_a = Eigen::Matrix<T_a, Eigen::Dynamic, 1>;
   using eig_vec_b = Eigen::Matrix<T_b, Eigen::Dynamic, 1>;
+  using namespace boost::math::quadrature;
+
   const int maxEval = max_eval <= 0 ? 1000000 : max_eval;
   Scalar result;
   Scalar err;
@@ -436,6 +422,15 @@ inline Scalar hcubature(const F& integrand, const ParsTuple& pars,
       std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 4>,
       Eigen::Matrix<double, 5, 1>, Eigen::Matrix<double, 4, 1>>
       genz_malik;
+
+  auto gk_lambda = [&integrand, &pars](auto&& c) {
+    return stan::math::apply(
+        [](auto&& integrand, auto&& c, auto&&... args) {
+          return integrand(c, args...);
+        },
+        pars, integrand, c);
+  };
+
   if (dim == 1) {
     std::tie(result, err)
         = internal::gauss_kronrod(integrand, a[0], b[0], pars);
@@ -459,7 +454,7 @@ inline Scalar hcubature(const F& integrand, const ParsTuple& pars,
   using box_t = internal::Box<T_a, T_b>;
   std::vector<box_t> ms;
   ms.reserve(numevals);
-  ms.emplace_back(std::move(a), std::move(b), result, kdivide);
+  ms.emplace_back(a, b, result, kdivide);
   auto get_largest_box_idx = [](auto&& box_vec) {
     auto max_it = std::max_element(box_vec.begin(), box_vec.end());
     return std::distance(box_vec.begin(), max_it);

@@ -12,6 +12,12 @@ enum GradientCalc { OFF = 0, ON = 1 };
 /**
  * Calculate the 'error_term' term for a wiener5 density or gradient
  *
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_v type of drift rate
+ * @tparam T_w type of relative starting point
+ * @tparam T_sv type of inter-trial variability in v
+ *
  * @param y A scalar variable; the reaction time in seconds
  * @param a The boundary separation
  * @param v_value The drift rate
@@ -34,47 +40,14 @@ inline auto wiener5_compute_error_term(T_y&& y, T_a&& a, T_v&& v_value,
 }
 
 /**
- * Calculate the 'density_part_one' term for a wiener5 density or gradient
- *
- * @tparam GradA Whether the calculation is for gradient w.r.t. 'a'
- * @tparam GradT Whether the calculation is for gradient w.r.t. 't'
- * @tparam Scalar type of scalars
- *
- * @param y A scalar variable; the reaction time in seconds
- * @param a The boundary separation
- * @param v_value The drift rate
- * @param w_value The relative starting point
- * @param sv The inter-trial variability of the drift rate
- * @return 'density_part_one' term
- */
-template <GradientCalc GradA, GradientCalc GradT, typename T_y, typename T_a,
-          typename T_v_value, typename T_w_value, typename T_sv>
-inline auto wiener5_density_part_one(T_y&& y, T_a&& a, T_v_value&& v_value,
-                                     T_w_value&& w_value, T_sv&& sv) noexcept {
-  const auto w = 1.0 - w_value;
-  const auto v = -v_value;
-  const auto sv_sqr = square(sv);
-  const auto one_plus_svsqr_y = 1 + sv_sqr * y;
-  if (GradT) {
-    return -0.5
-           * (square(sv_sqr) * (y + square(a * w))
-              + sv_sqr * (1 - (2.0 * a * v * w)) + square(v))
-           / square(one_plus_svsqr_y);
-  } else {
-    if (GradA) {
-      return (-v * w + sv_sqr * square(w) * a) / one_plus_svsqr_y;
-    } else {
-      return (-v * a + sv_sqr * square(a) * w) / one_plus_svsqr_y;
-    }
-  }
-}
-
-/**
  * Calculate the 'n_terms_small_t' term for a wiener5 density or gradient
  *
  * @tparam Density Whether the calculation is for the density
  * @tparam GradW Whether the calculation is for gradient w.r.t. 'w'
- * @tparam Scalar type of scalars
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_w_value type of relative starting point
+ * @tparam T_err type of error
  *
  * @param y A scalar variable; the reaction time in seconds
  * @param a The boundary separation
@@ -108,11 +81,12 @@ inline auto wiener5_n_terms_small_t(T_y&& y, T_a&& a, T_w_value&& w_value,
 }
 
 /**
- * Calculate the 'n_terms_small_t' term for a wiener5 density or gradient
+ * Calculate the 'n_terms_large_t' term for a wiener5 density
  *
- * @tparam Density Whether the calculation is for the density
- * @tparam GradT Whether the calculation is for gradient w.r.t. 't'
- * @tparam Scalar type of scalars
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_w_value type of relative starting point
+ * @tparam T_err type of error
  *
  * @param y A scalar variable; the reaction time in seconds
  * @param a The boundary separation
@@ -120,34 +94,55 @@ inline auto wiener5_n_terms_small_t(T_y&& y, T_a&& a, T_w_value&& w_value,
  * @param error The error tolerance
  * @return 'n_terms_large_t' term
  */
-template <bool Density, GradientCalc GradW, typename T_y, typename T_a,
-          typename T_w_value, typename T_err>
-inline auto wiener5_n_terms_large_t(T_y&& y, T_a&& a, T_w_value&& w_value,
-                                    T_err&& error) noexcept {
+template <typename T_y, typename T_a, typename T_w_value, typename T_err>
+inline auto wiener5_density_large_reaction_time_terms(T_y&& y, T_a&& a,
+                                                      T_w_value&& w_value,
+                                                      T_err&& error) noexcept {
   const auto y_asq = y / square(a);
   const auto log_y_asq = log(y) - 2 * log(a);
   static constexpr double PI_SQUARED = pi() * pi();
-  if (Density) {
-    auto n_1 = 1.0 / (pi() * sqrt(y_asq));
-    const auto two_log_piy = -2.0 * (LOG_PI + log_y_asq + error);
-    auto n_2
-        = (two_log_piy >= 0) ? sqrt(two_log_piy / (PI_SQUARED * y_asq)) : 0.0;
-    return ceil(fmax(n_1, n_2));
-  } else {
-    const auto n_1_factor = GradW ? 2 : 3;
-    auto n_1 = sqrt(n_1_factor / y_asq) / pi();
-    const auto two_error = 2.0 * error;
-    const auto u_eps_arg
-        = GradW
-              ? log(4.0) - log(9.0) + 2.0 * LOG_PI + 3.0 * log_y_asq + two_error
+  auto n_1 = 1.0 / (pi() * sqrt(y_asq));
+  const auto two_log_piy = -2.0 * (LOG_PI + log_y_asq + error);
+  auto n_2
+      = (two_log_piy >= 0) ? sqrt(two_log_piy / (PI_SQUARED * y_asq)) : 0.0;
+  return ceil(fmax(n_1, n_2));
+}
+
+/**
+ * Calculate the 'n_terms_large_t' term for a wiener5 gradient
+ *
+ * @tparam GradW Whether the calculation is for gradient w.r.t. 'w'
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_w_value type of relative starting point
+ * @tparam T_err type of error
+ *
+ * @param y A scalar variable; the reaction time in seconds
+ * @param a The boundary separation
+ * @param w_value The relative starting point
+ * @param error The error tolerance
+ * @return 'n_terms_large_t' term
+ */
+template <GradientCalc GradW, typename T_y, typename T_a, typename T_w_value,
+          typename T_err>
+inline auto wiener5_gradient_large_reaction_time_terms(T_y&& y, T_a&& a,
+                                                       T_w_value&& w_value,
+                                                       T_err&& error) noexcept {
+  const auto y_asq = y / square(a);
+  const auto log_y_asq = log(y) - 2 * log(a);
+  static constexpr double PI_SQUARED = pi() * pi();
+  const auto n_1_factor = GradW ? 2 : 3;
+  auto n_1 = sqrt(n_1_factor / y_asq) / pi();
+  const auto two_error = 2.0 * error;
+  const auto u_eps_arg
+      = GradW ? log(4.0) - log(9.0) + 2.0 * LOG_PI + 3.0 * log_y_asq + two_error
               : log(3.0) - log(5.0) + LOG_PI + 2.0 * log_y_asq + error;
-    const auto u_eps = fmin(-1, u_eps_arg);
-    const auto arg_mult = GradW ? 1 : (2.0 / PI_SQUARED / y_asq);
-    const auto arg = -arg_mult * (u_eps - sqrt(-2.0 * u_eps - 2.0));
-    auto n_2 = GradW ? ((arg > 0) ? sqrt(arg / y_asq) / pi() : n_1)
-                     : ((arg > 0) ? sqrt(arg) : n_1);
-    return ceil(fmax(n_1, n_2));
-  }
+  const auto u_eps = fmin(-1, u_eps_arg);
+  const auto arg_mult = GradW ? 1 : (2.0 / PI_SQUARED / y_asq);
+  const auto arg = -arg_mult * (u_eps - sqrt(-2.0 * u_eps - 2.0));
+  auto n_2 = GradW ? ((arg > 0) ? sqrt(arg / y_asq) / pi() : n_1)
+                   : ((arg > 0) ? sqrt(arg) : n_1);
+  return ceil(fmax(n_1, n_2));
 }
 
 /**
@@ -155,7 +150,11 @@ inline auto wiener5_n_terms_large_t(T_y&& y, T_a&& a, T_w_value&& w_value,
  *
  * @tparam Density Whether the calculation is for the density
  * @tparam GradW Whether the calculation is for gradient w.r.t. 'w'
- * @tparam Scalar type of scalars
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_w type of relative starting point
+ * @tparam T_nsmall type of term number_small_terms
+ * @tparam T_nlarge type of term number_large_terms
  *
  * @param y A scalar variable; the reaction time in seconds
  * @param a The boundary separation
@@ -182,50 +181,56 @@ inline auto wiener5_log_sum_exp(T_y&& y, T_a&& a, T_w&& w_value,
   if (small_n_terms_small_t) {
     constexpr double mult = Density ? 1.0 : 3.0;
     if (GradW) {
-      const auto offset = y_asq;
       for (auto k = n_terms_small_t; k >= 1; k--) {
-        const auto wp2k = w + 2.0 * k;
-        const auto wm2k = w - 2.0 * k;
-        const auto sqwp2k_mo = square(wp2k) - offset;
-        if (sqwp2k_mo > 0) {
-          const auto wp2k_quant = log(sqwp2k_mo) - square(wp2k) * scaling;
-          fplus = log_sum_exp(fplus, wp2k_quant);
-        } else if (sqwp2k_mo < 0) {
-          const auto wp2k_quant = log(-sqwp2k_mo) - square(wp2k) * scaling;
-          fminus = log_sum_exp(fminus, wp2k_quant);
+        const auto w_plus_2_k = w + 2.0 * k;
+        const auto w_minus_2_k = w - 2.0 * k;
+        const auto square_w_plus_2_k_minus_offset = square(w_plus_2_k) - y_asq;
+        if (square_w_plus_2_k_minus_offset > 0) {
+          const auto summand_plus = log(square_w_plus_2_k_minus_offset)
+                                    - square(w_plus_2_k) * scaling;
+          fplus = log_sum_exp(fplus, summand_plus);
+        } else if (square_w_plus_2_k_minus_offset < 0) {
+          const auto summand_plus = log(-square_w_plus_2_k_minus_offset)
+                                    - square(w_plus_2_k) * scaling;
+          fminus = log_sum_exp(fminus, summand_plus);
         }
-        const auto sqwm2k_mo = square(wm2k) - offset;
-        if (sqwm2k_mo > 0) {
-          const auto wm2k_quant = log(sqwm2k_mo) - square(wm2k) * scaling;
-          fplus = log_sum_exp(fplus, wm2k_quant);
-        } else if (sqwm2k_mo < 0) {
-          const auto wm2k_quant = log(-sqwm2k_mo) - square(wm2k) * scaling;
-          fminus = log_sum_exp(fminus, wm2k_quant);
+        const auto square_w_minus_2_k_minus_offset
+            = square(w_minus_2_k) - y_asq;
+        if (square_w_minus_2_k_minus_offset > 0) {
+          const auto summand_minus = log(square_w_minus_2_k_minus_offset)
+                                     - square(w_minus_2_k) * scaling;
+          fplus = log_sum_exp(fplus, summand_minus);
+        } else if (square_w_minus_2_k_minus_offset < 0) {
+          const auto summand_minus = log(-square_w_minus_2_k_minus_offset)
+                                     - square(w_minus_2_k) * scaling;
+          fminus = log_sum_exp(fminus, summand_minus);
         }
       }
-      const auto sqw_mo = square(w) - offset;
-      if (sqw_mo > 0) {
-        const auto new_val = log(sqw_mo) - square(w) * scaling;
+      const auto square_w_minus_offset = square(w) - y_asq;
+      if (square_w_minus_offset > 0) {
+        const auto new_val = log(square_w_minus_offset) - square(w) * scaling;
         fplus = log_sum_exp(fplus, new_val);
-      } else if (sqw_mo < 0) {
-        const auto new_val = log(-sqw_mo) - square(w) * scaling;
+      } else if (square_w_minus_offset < 0) {
+        const auto new_val = log(-square_w_minus_offset) - square(w) * scaling;
         fminus = log_sum_exp(fminus, new_val);
       }
     } else {
       for (auto k = n_terms_small_t; k >= 1; k--) {
-        const auto wp2k = w + 2.0 * k;
-        const auto wm2k = w - 2.0 * k;
-        const auto wp2k_quant = mult * log(wp2k) - square(wp2k) * scaling;
-        fplus = log_sum_exp(fplus, wp2k_quant);
-        const auto wm2k_quant = mult * log(-wm2k) - square(wm2k) * scaling;
+        const auto w_plus_2_k = w + 2.0 * k;
+        const auto w_minus_2_k = w - 2.0 * k;
+        const auto summand_plus
+            = mult * log(w_plus_2_k) - square(w_plus_2_k) * scaling;
+        fplus = log_sum_exp(fplus, summand_plus);
+        const auto summand_minus
+            = mult * log(-w_minus_2_k) - square(w_minus_2_k) * scaling;
         if (fminus <= NEGATIVE_INFTY) {
-          fminus = wm2k_quant;
-        } else if (wm2k_quant <= NEGATIVE_INFTY) {
+          fminus = summand_minus;
+        } else if (summand_minus <= NEGATIVE_INFTY) {
           continue;
-        } else if (fminus > wm2k_quant) {
-          fminus = fminus + log1p(exp(wm2k_quant - fminus));
+        } else if (fminus > summand_minus) {
+          fminus = fminus + log1p_exp(summand_minus - fminus);
         } else {
-          fminus = wm2k_quant + log1p(exp(fminus - wm2k_quant));
+          fminus = summand_minus + log1p_exp(fminus - summand_minus);
         }
       }
       const auto new_val = mult * log(w) - square(w) * scaling;
@@ -264,6 +269,12 @@ inline auto wiener5_log_sum_exp(T_y&& y, T_a&& a, T_w&& w_value,
  *
  * @tparam NaturalScale Whether to return the density on natural (true) or
  * log-scale (false)
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_w type of relative starting point
+ * @tparam T_v type of drift rate
+ * @tparam T_sv type of inter-trial variability in v
+ * @tparam T_err type of log error
  *
  * @param y A scalar variable; the reaction time in seconds
  * @param a The boundary separation
@@ -285,8 +296,7 @@ inline auto wiener5_density(const T_y& y, const T_a& a, const T_v& v_value,
       = wiener5_n_terms_small_t<GradientCalc::ON, GradientCalc::OFF>(
           y, a, w_value, error);
   const auto n_terms_large_t
-      = wiener5_n_terms_large_t<GradientCalc::ON, GradientCalc::OFF>(
-          y, a, w_value, error);
+      = wiener5_density_large_reaction_time_terms(y, a, w_value, error);
 
   auto res = wiener5_log_sum_exp<GradientCalc::ON, GradientCalc::OFF>(
                  y, a, w_value, n_terms_small_t, n_terms_large_t)
@@ -306,7 +316,12 @@ inline auto wiener5_density(const T_y& y, const T_a& a, const T_v& v_value,
  *
  * @tparam WrtLog Whether to return the derivative w.r.t.
  *                  the natural (true) or log-scale (false) density
- * @tparam Scalar type of scalars
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_v type of drift rate
+ * @tparam T_w type of relative starting point
+ * @tparam T_sv type of inter-trial variability in v
+ * @tparam T_err type of log error
  *
  * @param y A scalar variable; the reaction time in seconds
  * @param a The boundary separation
@@ -325,15 +340,21 @@ inline auto wiener5_grad_t(const T_y& y, const T_a& a, const T_v& v_value,
   const auto log_y_asq = log(y) - two_log_a;
   const auto error_term
       = wiener5_compute_error_term(y, a, v_value, w_value, sv);
+  const auto w = 1.0 - w_value;
+  const auto v = -v_value;
+  const auto sv_sqr = square(sv);
+  const auto one_plus_svsqr_y = 1 + sv_sqr * y;
   const auto density_part_one
-      = wiener5_density_part_one<GradientCalc::OFF, GradientCalc::ON>(
-          y, a, v_value, w_value, sv);
+      = -0.5
+        * (square(sv_sqr) * (y + square(a * w))
+           + sv_sqr * (1 - (2.0 * a * v * w)) + square(v))
+        / square(one_plus_svsqr_y);
   const auto error = (err - error_term) + two_log_a;
   const auto n_terms_small_t
       = wiener5_n_terms_small_t<GradientCalc::OFF, GradientCalc::OFF>(
           y, a, w_value, error);
   const auto n_terms_large_t
-      = wiener5_n_terms_large_t<GradientCalc::OFF, GradientCalc::OFF>(
+      = wiener5_gradient_large_reaction_time_terms<GradientCalc::OFF>(
           y, a, w_value, error);
   auto wiener_res = wiener5_log_sum_exp<GradientCalc::OFF, GradientCalc::OFF>(
       y, a, w_value, n_terms_small_t, n_terms_large_t);
@@ -363,7 +384,12 @@ inline auto wiener5_grad_t(const T_y& y, const T_a& a, const T_v& v_value,
  *
  * @tparam WrtLog Whether to return the derivative w.r.t.
  *                  the natural (true) or log-scale (false) density
- * @tparam Scalar type of scalars
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_v type of drift rate
+ * @tparam T_w type of relative starting point
+ * @tparam T_sv type of inter-trial variability in v
+ * @tparam T_err type of log error
  *
  * @param y A scalar variable; the reaction time in seconds
  * @param a The boundary separation
@@ -382,16 +408,19 @@ inline auto wiener5_grad_a(const T_y& y, const T_a& a, const T_v& v_value,
   const auto log_y_asq = log(y) - two_log_a;
   const auto error_term
       = wiener5_compute_error_term(y, a, v_value, w_value, sv);
+  const auto w = 1.0 - w_value;
+  const auto v = -v_value;
+  const auto sv_sqr = square(sv);
+  const auto one_plus_svsqr_y = 1 + sv_sqr * y;
   const auto density_part_one
-      = wiener5_density_part_one<GradientCalc::ON, GradientCalc::OFF>(
-          y, a, v_value, w_value, sv);
+      = (-v * w + sv_sqr * square(w) * a) / one_plus_svsqr_y;
   const auto error = err - error_term + 3 * log(a) - log(y) - LOG_TWO;
 
   const auto n_terms_small_t
       = wiener5_n_terms_small_t<GradientCalc::OFF, GradientCalc::OFF>(
           y, a, w_value, error);
   const auto n_terms_large_t
-      = wiener5_n_terms_large_t<GradientCalc::OFF, GradientCalc::OFF>(
+      = wiener5_gradient_large_reaction_time_terms<GradientCalc::OFF>(
           y, a, w_value, error);
   auto wiener_res = wiener5_log_sum_exp<GradientCalc::OFF, GradientCalc::OFF>(
       y, a, w_value, n_terms_small_t, n_terms_large_t);
@@ -422,7 +451,12 @@ inline auto wiener5_grad_a(const T_y& y, const T_a& a, const T_v& v_value,
  *
  * @tparam WrtLog Whether to return the derivative w.r.t.
  *                  the natural (true) or log-scale (false) density
- * @tparam Scalar type of scalars
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_v type of drift rate
+ * @tparam T_w type of relative starting point
+ * @tparam T_sv type of inter-trial variability in v
+ * @tparam T_err type of log error
  *
  * @param y A scalar variable; the reaction time in seconds
  * @param a The boundary separation
@@ -450,7 +484,12 @@ inline auto wiener5_grad_v(const T_y& y, const T_a& a, const T_v& v_value,
  *
  * @tparam WrtLog Whether to return the derivative w.r.t.
  *                  the natural (true) or log-scale (false) density
- * @tparam Scalar type of scalars
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_v type of drift rate
+ * @tparam T_w type of relative starting point
+ * @tparam T_sv type of inter-trial variability in v
+ * @tparam T_err type of log error
  *
  * @param y A scalar variable; the reaction time in seconds
  * @param a The boundary separation
@@ -469,16 +508,19 @@ inline auto wiener5_grad_w(const T_y& y, const T_a& a, const T_v& v_value,
   const auto log_y_asq = log(y) - two_log_a;
   const auto error_term
       = wiener5_compute_error_term(y, a, v_value, w_value, sv);
+  const auto w = 1.0 - w_value;
+  const auto v = -v_value;
+  const auto sv_sqr = square(sv);
+  const auto one_plus_svsqr_y = 1 + sv_sqr * y;
   const auto density_part_one
-      = wiener5_density_part_one<GradientCalc::OFF, GradientCalc::OFF>(
-          y, a, v_value, w_value, sv);
+      = (-v * a + sv_sqr * square(a) * w) / one_plus_svsqr_y;
   const auto error = (err - error_term);
 
   const auto n_terms_small_t
       = wiener5_n_terms_small_t<GradientCalc::OFF, GradientCalc::ON>(
           y, a, w_value, error);
   const auto n_terms_large_t
-      = wiener5_n_terms_large_t<GradientCalc::OFF, GradientCalc::ON>(
+      = wiener5_gradient_large_reaction_time_terms<GradientCalc::ON>(
           y, a, w_value, error);
   auto wiener_res = wiener5_log_sum_exp<GradientCalc::OFF, GradientCalc::ON>(
       y, a, w_value, n_terms_small_t, n_terms_large_t);
@@ -505,7 +547,12 @@ inline auto wiener5_grad_w(const T_y& y, const T_a& a, const T_v& v_value,
  *
  * @tparam WrtLog Whether to return the derivative w.r.t.
  *                  the natural (true) or log-scale (false) density
- * @tparam Scalar type of scalars
+ * @tparam T_y type of scalar variable
+ * @tparam T_a type of boundary separation
+ * @tparam T_v type of drift rate
+ * @tparam T_w type of relative starting point
+ * @tparam T_sv type of inter-trial variability in v
+ * @tparam T_err type of log error
  *
  * @param y A scalar variable; the reaction time in seconds
  * @param a The boundary separation
@@ -533,6 +580,13 @@ inline auto wiener5_grad_sv(const T_y& y, const T_a& a, const T_v& v_value,
 
 /**
  * Utility function for replacing a value with a specified error value
+ *
+ * @tparam NestedIndex index of error position in tuple
+ * @tparam Scalar1 type of argument to be replaced
+ * @tparam Scalar2 type of error to replace
+ *
+ * @param arg argument to be replaced
+ * @param err argument to replace
  */
 template <size_t NestedIndex, typename Scalar1, typename Scalar2>
 inline void assign_err(Scalar1 arg, Scalar2 err) {
@@ -542,6 +596,13 @@ inline void assign_err(Scalar1 arg, Scalar2 err) {
 /**
  * Utility function for replacing a value with a specified error value,
  * overload for use when the value is stored within a tuple.
+ *
+ * @tparam NestedIndex index of element in tuple to be replaced
+ * @tparam Scalar type of error to replace
+ * @tparam TArgs type of arguments to be replaced
+ *
+ * @param args_tuple argument tuple to be replaced
+ * @param err argument to replace
  */
 template <size_t NestedIndex, typename Scalar, typename... TArgs>
 inline void assign_err(std::tuple<TArgs...>& args_tuple, Scalar err) {
@@ -553,20 +614,21 @@ inline void assign_err(std::tuple<TArgs...>& args_tuple, Scalar err) {
  * checking the result against a provided error tolerance, and re-estimating
  * the function with the increased error if it fails.
  *
- * @tparam Scalar type of scalars
  * @tparam ErrIndex Position of the error argument in the provided arguments
+ * @tparam GradW7 Whether the gradient of w is computed
  * @tparam NestedIndex Nested position if the error argument is within a tuple
+ * @tparam LogResult Whether result is on log- or on natural-scale
  * @tparam F Type of functor
+ * @tparam T_err type of error
  * @tparam ArgsTupleT Type of tuple of arguments for functor
  *
  * @param functor Function to apply
  * @param err Error value to check against
  * @param args_tuple Tuple of arguments to pass to functor
- * @param log_result Whether the function result is already on the log-scale
  */
-template <size_t ErrIndex, GradientCalc GradW7 = GradientCalc::OFF,
-          size_t NestedIndex = 0, bool LogResult = true, typename F,
-          typename T_err, typename... ArgsTupleT>
+template <size_t ErrIndex, size_t NestedIndex = 0,
+          GradientCalc GradW7 = GradientCalc::OFF, bool LogResult = true,
+          typename F, typename T_err, typename... ArgsTupleT>
 inline auto estimate_with_err_check(F&& functor, T_err&& err,
                                     ArgsTupleT&&... args_tuple) {
   auto result = functor(args_tuple...);
@@ -595,6 +657,7 @@ inline auto estimate_with_err_check(F&& functor, T_err&& err,
  * @tparam T_w type of relative starting point
  * @tparam T_v type of drift rate
  * @tparam T_sv type of inter-trial variability of drift rate
+ * @tparam T_precision type of precision
  *
  * @param y A scalar variable; the reaction time in seconds
  * @param a The boundary separation
@@ -607,10 +670,10 @@ inline auto estimate_with_err_check(F&& functor, T_err&& err,
  *  the specified arguments for upper boundary responses
  */
 template <bool propto = false, typename T_y, typename T_a, typename T_t0,
-          typename T_w, typename T_v, typename T_sv, typename T_precision>
+          typename T_w, typename T_v, typename T_sv>
 inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
                         const T_w& w, const T_v& v, const T_sv& sv,
-                        const T_precision& precision_derivatives) {
+                        const double& precision_derivatives = 1e-4) {
   using T_partials_return = partials_return_t<T_y, T_a, T_t0, T_w, T_v, T_sv>;
   using ret_t = return_type_t<T_y, T_a, T_t0, T_w, T_v, T_sv>;
   if (!include_summand<propto, T_y, T_a, T_t0, T_w, T_v, T_sv>::value) {
@@ -703,7 +766,7 @@ inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
     const auto v_value = v_vec.val(i);
     const auto sv_value = sv_vec.val(i);
     using internal::GradientCalc;
-    auto l_density = internal::estimate_with_err_check<5, GradientCalc::OFF, 0,
+    auto l_density = internal::estimate_with_err_check<5, 0, GradientCalc::OFF,
                                                        GradientCalc::OFF>(
         [](auto&&... args) {
           return internal::wiener5_density<GradientCalc::OFF>(args...);
@@ -717,13 +780,14 @@ inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
 
     // computation of derivative for t and precision check in order to give
     // the value as deriv_y to edge1 and as -deriv_y to edge5
-    const auto deriv_y = internal::estimate_with_err_check<5, GradientCalc::OFF,
-                                                           0, GradientCalc::ON>(
-        [](auto&&... args) {
-          return internal::wiener5_grad_t<GradientCalc::OFF>(args...);
-        },
-        new_est_err, y_value - t0_value, a_value, v_value, w_value, sv_value,
-        log_error_absolute);
+    const auto deriv_y
+        = internal::estimate_with_err_check<5, 0, GradientCalc::OFF,
+                                            GradientCalc::ON>(
+            [](auto&&... args) {
+              return internal::wiener5_grad_t<GradientCalc::OFF>(args...);
+            },
+            new_est_err, y_value - t0_value, a_value, v_value, w_value,
+            sv_value, log_error_absolute);
 
     // computation of derivatives and precision checks
     if (!is_constant_all<T_y>::value) {
@@ -731,7 +795,7 @@ inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
     }
     if (!is_constant_all<T_a>::value) {
       partials<1>(ops_partials)[i]
-          = internal::estimate_with_err_check<5, GradientCalc::OFF, 0,
+          = internal::estimate_with_err_check<5, 0, GradientCalc::OFF,
                                               GradientCalc::ON>(
               [](auto&&... args) {
                 return internal::wiener5_grad_a<GradientCalc::OFF>(args...);
@@ -744,7 +808,7 @@ inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
     }
     if (!is_constant_all<T_w>::value) {
       partials<3>(ops_partials)[i]
-          = internal::estimate_with_err_check<5, GradientCalc::OFF, 0,
+          = internal::estimate_with_err_check<5, 0, GradientCalc::OFF,
                                               GradientCalc::ON>(
               [](auto&&... args) {
                 return internal::wiener5_grad_w<GradientCalc::OFF>(args...);
@@ -766,7 +830,16 @@ inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
     }
   }  // end for loop
   return ops_partials.build(log_density);
-}  // end wiener5_lpdf
+}  // end wiener_lpdf
+
+template <bool propto = false, typename T_y, typename T_a, typename T_t0,
+          typename T_w, typename T_v>
+inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
+                        const T_w& w, const T_v& v,
+                        const double& precision_derivatives = 1e-4) {
+  return wiener_lpdf(y, a, t0, w, v, 0, precision_derivatives);
+}  // end wiener_lpdf
+
 }  // namespace math
 }  // namespace stan
 #endif
