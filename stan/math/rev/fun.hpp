@@ -76,6 +76,7 @@
 #include <stan/math/rev/fun/gp_periodic_cov.hpp>
 #include <stan/math/rev/fun/grad.hpp>
 #include <stan/math/rev/fun/grad_inc_beta.hpp>
+#include <stan/math/rev/fun/hypergeometric_1F0.hpp>
 #include <stan/math/rev/fun/hypergeometric_2F1.hpp>
 #include <stan/math/rev/fun/hypergeometric_pFq.hpp>
 #include <stan/math/rev/fun/hypot.hpp>
@@ -160,11 +161,11 @@
 #include <stan/math/rev/fun/rows_dot_product.hpp>
 #include <stan/math/rev/fun/rows_dot_self.hpp>
 #include <stan/math/rev/fun/sd.hpp>
-#include <stan/math/rev/fun/simplex_column_constrain.hpp>
 #include <stan/math/rev/fun/simplex_constrain.hpp>
-#include <stan/math/rev/fun/simplex_row_constrain.hpp>
 #include <stan/math/rev/fun/sin.hpp>
 #include <stan/math/rev/fun/singular_values.hpp>
+#include <stan/math/rev/fun/stochastic_column_constrain.hpp>
+#include <stan/math/rev/fun/stochastic_row_constrain.hpp>
 #include <stan/math/rev/fun/svd.hpp>
 #include <stan/math/rev/fun/svd_U.hpp>
 #include <stan/math/rev/fun/svd_V.hpp>
@@ -182,6 +183,7 @@
 #include <stan/math/rev/fun/tgamma.hpp>
 #include <stan/math/rev/fun/to_var.hpp>
 #include <stan/math/rev/fun/to_arena.hpp>
+#include <stan/math/rev/fun/to_soa_sparse_matrix.hpp>
 #include <stan/math/rev/fun/to_var_value.hpp>
 #include <stan/math/rev/fun/to_vector.hpp>
 #include <stan/math/rev/fun/trace.hpp>

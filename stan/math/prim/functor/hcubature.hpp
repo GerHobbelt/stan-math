@@ -27,8 +27,6 @@
 #include <stan/math/prim/functor/integrate_1d.hpp>
 #include <queue>
 #include <tuple>
-#include <iostream>
-#include <boost/math/quadrature/gauss_kronrod.hpp>
 
 namespace stan {
 namespace math {
@@ -92,10 +90,10 @@ inline void combination(Eigen::Matrix<int, Eigen::Dynamic, 1>& c, const int dim,
 }
 
 /**
- * Compute a vector [p] of all [dim]-component vectors
+ * Compute a matrix [p] of all [dim]-component vectors
  * with [k] components equal to [lambda] and other components equal to zero.
  *
- * @param[in,out] p vector of vectors
+ * @param[in,out] p matrix
  * @param k number of components equal to lambda
  * @param lambda scalar
  * @param dim dimension
@@ -117,11 +115,11 @@ inline Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> combos(
 }
 
 /**
- * Compute a vector [p] of all [dim]-component vectors
+ * Compute a matrix [p] of all [dim]-component vectors
  * with [k] components equal to [±lambda] and other components equal to zero
  * (with all possible signs).
  *
- * @param[in,out] p vector of vectors
+ * @param[in,out] p matrix
  * @param k number of components equal to lambda
  * @param lambda scalar
  * @param dim dimension
@@ -423,14 +421,6 @@ inline auto hcubature(const F& integrand, const ParsTuple& pars, const int dim,
       Eigen::Matrix<double, 5, 1>, Eigen::Matrix<double, 4, 1>>
       genz_malik;
 
-  auto gk_lambda = [&integrand, &pars](auto&& c) {
-    return stan::math::apply(
-        [](auto&& integrand, auto&& c, auto&&... args) {
-          return integrand(c, args...);
-        },
-        pars, integrand, c);
-  };
-
   if (dim == 1) {
     std::tie(result, err)
         = internal::gauss_kronrod(integrand, a[0], b[0], pars);
@@ -489,8 +479,8 @@ inline auto hcubature(const F& integrand, const ParsTuple& pars, const int dim,
       std::tie(result_2, err_2, kdivide_2) = internal::integrate_GenzMalik(
           integrand, genz_malik, dim, box.a_, mb, pars);
     }
-    box_t box1(std::move(ma), std::move(box.b_), result_1, kdivide_1);
-    box_t box2(std::move(box.a_), std::move(mb), result_2, kdivide_2);
+    box_t box1(std::move(ma), box.b_, result_1, kdivide_1);
+    box_t box2(box.a_, std::move(mb), result_2, kdivide_2);
     result += result_1 + result_2 - box.I_;
     err += err_1 + err_2 - err_vec[err_idx];
     ms[err_idx].I_ = 0;

@@ -277,6 +277,11 @@ inline auto wiener7_integrate(const Wiener7FunctorT& wiener7_functor,
  @code
  target += wiener_lpdf(y, a, 0, w, v, sv, sw, 0)
  @endcode
+ * If only inter-trial variability for the drift rate is needed can write
+ something like:
+ @code
+ target += wiener_lpdf(y, a, t0, w, v, sv)
+ @endcode
  *
  * To also control the precision in the estimation of the partial derivatives:
  @code
@@ -377,7 +382,7 @@ inline auto wiener_lpdf(const T_y& y, const T_a& a, const T_t0& t0,
                st0_val);
 
   const size_t N = max_size(y, a, v, w, t0, sv, sw, st0);
-  if (!N) {
+  if (N == 0) {
     return ret_t(0);
   }
   scalar_seq_view<T_y_ref> y_vec(y_ref);
