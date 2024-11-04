@@ -1,5 +1,5 @@
 // Arguments: Ints, Doubles, Doubles, Doubles
-#include <stan/math/prim/prob/beta_neg_binomial_lccdf.hpp>
+#include <stan/math/prim/prob/beta_neg_binomial_lcdf.hpp>
 #include <stan/math/prim/fun/lbeta.hpp>
 #include <stan/math/prim/fun/lgamma.hpp>
 
@@ -7,10 +7,10 @@ using stan::math::var;
 using std::numeric_limits;
 using std::vector;
 
-class AgradCcdfLogBetaNegBinomial : public AgradCcdfLogTest {
+class AgradCdfLogBetaNegBinomial : public AgradCdfLogTest {
  public:
   void valid_values(vector<vector<double>>& parameters,
-                    vector<double>& ccdf_log) {
+                    vector<double>& cdf_log) {
     vector<double> param(4);
 
     param[0] = 0;    // n
@@ -18,7 +18,7 @@ class AgradCcdfLogBetaNegBinomial : public AgradCcdfLogTest {
     param[2] = 5.0;  // alpha
     param[3] = 1.0;  // beta
     parameters.push_back(param);
-    ccdf_log.push_back(std::log(1.0 - 0.833333333333333));  // expected ccdf_log
+    cdf_log.push_back(std::log(0.833333333333333));  // expected cdf_log
   }
 
   void invalid_values(vector<size_t>& index, vector<double>& value) {
@@ -62,22 +62,20 @@ class AgradCcdfLogBetaNegBinomial : public AgradCcdfLogTest {
 
   template <typename T_n, typename T_r, typename T_size1, typename T_size2,
             typename T4, typename T5>
-  stan::return_type_t<T_r, T_size1, T_size2> ccdf_log(const T_n& n,
-                                                      const T_r& r,
-                                                      const T_size1& alpha,
-                                                      const T_size2& beta,
-                                                      const T4&, const T5&) {
-    return stan::math::beta_neg_binomial_lccdf(n, r, alpha, beta);
+  stan::return_type_t<T_r, T_size1, T_size2> cdf_log(const T_n& n, const T_r& r,
+                                                     const T_size1& alpha,
+                                                     const T_size2& beta,
+                                                     const T4&, const T5&) {
+    return stan::math::beta_neg_binomial_lcdf(n, r, alpha, beta);
   }
 
   template <typename T_n, typename T_r, typename T_size1, typename T_size2,
             typename T4, typename T5>
-  stan::return_type_t<T_r, T_size1, T_size2> ccdf_log_function(
+  stan::return_type_t<T_r, T_size1, T_size2> cdf_log_function(
       const T_n& n, const T_r& r, const T_size1& alpha, const T_size2& beta,
       const T4&, const T5&) {
     using stan::math::lbeta;
     using stan::math::lgamma;
-    using stan::math::log1m;
     using stan::math::log_sum_exp;
     using std::vector;
 
@@ -89,8 +87,6 @@ class AgradCcdfLogBetaNegBinomial : public AgradCcdfLogTest {
       lpmf_values.push_back(lpmf);
     }
 
-    auto log_cdf = log_sum_exp(lpmf_values);
-
-    return log1m(exp(log_cdf));
+    return log_sum_exp(lpmf_values);
   }
 };
