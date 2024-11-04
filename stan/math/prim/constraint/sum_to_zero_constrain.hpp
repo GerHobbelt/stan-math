@@ -4,6 +4,7 @@
 #include <stan/math/prim/meta.hpp>
 #include <stan/math/prim/fun/Eigen.hpp>
 #include <stan/math/prim/fun/sum.hpp>
+#include <stan/math/prim/functor/apply_vector_unary.hpp>
 #include <cmath>
 
 namespace stan {
@@ -13,25 +14,36 @@ namespace math {
  * Return a vector with sum zero corresponding to the specified
  * free vector.
  *
- * The sum-to-zero transform is defined such that the first K-1
- * elements are unconstrained and the last element is the negative
- * sum of those elements.
+ * The sum-to-zero transform is defined using the inverse of the
+ * isometric log ratio transform (ILR)
  *
  * @tparam Vec type of the vector
  * @param y Free vector input of dimensionality K - 1.
  * @return Zero-sum vector of dimensionality K.
  */
-template <typename Vec, require_eigen_vector_t<Vec>* = nullptr>
+template <typename Vec, require_eigen_col_vector_t<Vec>* = nullptr,
+          require_not_st_var<Vec>* = nullptr>
 inline plain_type_t<Vec> sum_to_zero_constrain(const Vec& y) {
-  using T = value_type_t<Vec>;
+  const auto N = y.size();
 
-  int Km1 = y.size();
-  plain_type_t<Vec> x(Km1 + 1);
-  // copy the first Km1 elements
-  x.head(Km1) = y;
-  // set the last element to -sum(y)
-  x.coeffRef(Km1) = -sum(y);
-  return x;
+  plain_type_t<Vec> z = Eigen::VectorXd::Zero(N+1);
+  if (unlikely(N == 0)) {
+    return z;
+  }
+
+  auto&& y_ref = to_ref(y);
+
+  typename plain_type_t<Vec>::Scalar sum_w(0);
+  for (int i = N; i > 0; --i) {
+    double n = i;
+    auto w = y_ref(i-1) * inv_sqrt(n * (n + 1));
+    sum_w += w;
+
+    z.coeffRef(i-1) += sum_w;
+    z.coeffRef(i) -= w * n;
+  }
+
+  return z;
 }
 
 /**
@@ -48,7 +60,8 @@ inline plain_type_t<Vec> sum_to_zero_constrain(const Vec& y) {
  * @param lp unused
  * @return Zero-sum vector of dimensionality K.
  */
-template <typename Vec, require_eigen_vector_t<Vec>* = nullptr>
+template <typename Vec, require_eigen_col_vector_t<Vec>* = nullptr,
+          require_not_st_var<Vec>* = nullptr>
 inline plain_type_t<Vec> sum_to_zero_constrain(const Vec& y,
                                                value_type_t<Vec>& lp) {
   return sum_to_zero_constrain(y);
