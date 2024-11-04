@@ -4,11 +4,9 @@
 #include <stan/math/rev/meta.hpp>
 #include <stan/math/rev/core/reverse_pass_callback.hpp>
 #include <stan/math/rev/core/arena_matrix.hpp>
-#include <stan/math/rev/fun/value_of.hpp>
 #include <stan/math/prim/fun/Eigen.hpp>
+#include <stan/math/prim/fun/sqrt.hpp>
 #include <stan/math/prim/constraint/sum_to_zero_constrain.hpp>
-#include <stan/math/prim/fun/linspaced_vector.hpp>
-#include <stan/math/prim/fun/cumulative_sum.hpp>
 #include <cmath>
 #include <tuple>
 #include <vector>
@@ -20,21 +18,33 @@ namespace math {
  * Return a vector with sum zero corresponding to the specified
  * free vector.
  *
- * The sum-to-zero transform is defined such that the first K-1
- * elements are unconstrained and the last element is the negative
- * sum of those elements.
+ * The sum-to-zero transform is defined using a modified version of
+ * the inverse of the isometric log ratio transform (ILR).
+ * See:
+ * Egozcue, Juan Jose; Pawlowsky-Glahn, Vera; Mateu-Figueras, Gloria;
+ * Barcelo-Vidal, Carles (2003), "Isometric logratio transformations for
+ * compositional data analysis", Mathematical Geology, 35 (3): 279–300,
+ * doi:10.1023/A:1023818214614, S2CID 122844634
+ *
+ * This implementation is closer to the description of the same using "pivot
+ * coordinates" in
+ * Filzmoser, P., Hron, K., Templ, M. (2018). Geometrical Properties of
+ * Compositional Data. In: Applied Compositional Data Analysis. Springer Series
+ * in Statistics. Springer, Cham. https://doi.org/10.1007/978-3-319-96422-5_3
+ *
+ * This is a linear transform, with no Jacobian.
  *
  * @tparam T type of the vector
  * @param y Free vector input of dimensionality K - 1.
  * @return Zero-sum vector of dimensionality K.
  */
 template <typename T, require_rev_col_vector_t<T>* = nullptr>
-inline auto sum_to_zero_constrain(const T& y) {
+inline auto sum_to_zero_constrain(T&& y) {
   using ret_type = plain_type_t<T>;
   if (unlikely(y.size() == 0)) {
     return arena_t<ret_type>(Eigen::VectorXd{{0}});
   }
-  auto arena_y = to_arena(y);
+  auto arena_y = to_arena(std::forward<T>(y));
   arena_t<ret_type> arena_z = sum_to_zero_constrain(arena_y.val());
 
   reverse_pass_callback([arena_y, arena_z]() mutable {
@@ -42,16 +52,17 @@ inline auto sum_to_zero_constrain(const T& y) {
 
     double sum_u_adj = 0;
     for (int i = 0; i < N; ++i) {
-      double n = i + 1;
+      double n = static_cast<double>(i + 1);
 
-      double u_adj = arena_z.adj()(i);
-      sum_u_adj += u_adj;
+      // adjoint of the reverse cumulative sum computed in the forward mode
+      sum_u_adj += arena_z.adj()(i);
 
-      double v_adj = -arena_z.adj()(i + 1);
+      // adjoint of the offset subtraction
+      double v_adj = -arena_z.adj()(i + 1) * n;
 
-      double w = (v_adj * n) + sum_u_adj;
+      double w_adj = v_adj + sum_u_adj;
 
-      arena_y.adj()(i) += w / sqrt(n * (n + 1));
+      arena_y.adj()(i) += w_adj / sqrt(n * (n + 1));
     }
   });
 
@@ -62,10 +73,21 @@ inline auto sum_to_zero_constrain(const T& y) {
  * Return a vector with sum zero corresponding to the specified
  * free vector.
  *
- * The sum-to-zero transform is defined such that the first K-1
- * elements are unconstrained and the last element is the negative
- * sum of those elements. This is a linear transform, with no
- * Jacobian.
+ * The sum-to-zero transform is defined using a modified version of
+ * the inverse of the isometric log ratio transform (ILR).
+ * See:
+ * Egozcue, Juan Jose; Pawlowsky-Glahn, Vera; Mateu-Figueras, Gloria;
+ * Barcelo-Vidal, Carles (2003), "Isometric logratio transformations for
+ * compositional data analysis", Mathematical Geology, 35 (3): 279–300,
+ * doi:10.1023/A:1023818214614, S2CID 122844634
+ *
+ * This implementation is closer to the description of the same using "pivot
+ * coordinates" in
+ * Filzmoser, P., Hron, K., Templ, M. (2018). Geometrical Properties of
+ * Compositional Data. In: Applied Compositional Data Analysis. Springer Series
+ * in Statistics. Springer, Cham. https://doi.org/10.1007/978-3-319-96422-5_3
+ *
+ * This is a linear transform, with no Jacobian.
  *
  * @tparam Vec type of the vector
  * @param y Free vector input of dimensionality K - 1.
@@ -73,8 +95,8 @@ inline auto sum_to_zero_constrain(const T& y) {
  * @return Zero-sum vector of dimensionality K.
  */
 template <typename T, require_rev_col_vector_t<T>* = nullptr>
-inline auto sum_to_zero_constrain(const T& y, scalar_type_t<T>& lp) {
-  return sum_to_zero_constrain(y);
+inline auto sum_to_zero_constrain(T&& y, scalar_type_t<T>& lp) {
+  return sum_to_zero_constrain(std::forward<T>(y));
 }
 
 }  // namespace math

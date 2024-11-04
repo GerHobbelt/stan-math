@@ -5,6 +5,7 @@
 #include <stan/math/prim/err.hpp>
 #include <stan/math/prim/fun/Eigen.hpp>
 #include <stan/math/prim/fun/to_ref.hpp>
+#include <stan/math/prim/fun/sqrt.hpp>
 #include <stan/math/prim/functor/apply_vector_unary.hpp>
 #include <cmath>
 
@@ -14,9 +15,19 @@ namespace math {
 /**
  * Return an unconstrained vector.
  *
- * The sum-to-zero transform is defined such that the first K-1
- * elements are unconstrained and the last element is the negative
- * sum of those elements.
+ * The sum-to-zero transform is defined using a modified version of the
+ * isometric log ratio transform (ILR).
+ * See:
+ * Egozcue, Juan Jose; Pawlowsky-Glahn, Vera; Mateu-Figueras, Gloria;
+ * Barcelo-Vidal, Carles (2003), "Isometric logratio transformations for
+ * compositional data analysis", Mathematical Geology, 35 (3): 279–300,
+ * doi:10.1023/A:1023818214614, S2CID 122844634
+ *
+ * This implementation is closer to the description of the same using "pivot
+ * coordinates" in
+ * Filzmoser, P., Hron, K., Templ, M. (2018). Geometrical Properties of
+ * Compositional Data. In: Applied Compositional Data Analysis. Springer Series
+ * in Statistics. Springer, Cham. https://doi.org/10.1007/978-3-319-96422-5_3
  *
  * @tparam ColVec a column vector type
  * @param z Vector of length K.
@@ -38,10 +49,10 @@ inline plain_type_t<Vec> sum_to_zero_free(const Vec& z) {
 
   y.coeffRef(N - 1) = -z_ref(N) * sqrt(N * (N + 1)) / N;
 
-  typename plain_type_t<Vec>::Scalar sum_w(0);
+  value_type_t<Vec> sum_w(0);
 
   for (int i = N - 2; i >= 0; --i) {
-    double n = i + 1;
+    double n = static_cast<double>(i + 1);
     auto w = y(i + 1) / sqrt((n + 1) * (n + 2));
     sum_w += w;
     y.coeffRef(i) = (sum_w - z_ref(i + 1)) * sqrt(n * (n + 1)) / n;
