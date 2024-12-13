@@ -18,6 +18,7 @@ reference articles in the wiki as they are outdated and not maintained.
 
 Licensing
 ---------
+
 The Stan Math Library is licensed under the [new BSD
 license](https://github.com/stan-dev/math/blob/develop/LICENSE%2Emd).
 
