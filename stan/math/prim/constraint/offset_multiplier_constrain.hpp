@@ -305,7 +305,7 @@ template <bool Jacobian, typename T, typename M, typename S, typename Lp,
           require_convertible_t<return_type_t<T, M, S>, Lp>* = nullptr>
 inline auto offset_multiplier_constrain(const T& x, const M& mu, const S& sigma,
                                         Lp& lp) {
-  if (Jacobian) {
+  if constexpr (Jacobian) {
     return offset_multiplier_constrain(x, mu, sigma, lp);
   } else {
     return offset_multiplier_constrain(x, mu, sigma);
