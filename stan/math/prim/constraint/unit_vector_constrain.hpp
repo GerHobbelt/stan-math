@@ -57,28 +57,25 @@ inline plain_type_t<T1> unit_vector_constrain(const T1& y, T2& lp) {
 }
 
 /**
- * Return the unit length vector corresponding to the free vector y. If the
- * `Jacobian` parameter is `true`, the log density accumulator is incremented
- * with the log absolute Jacobian determinant of the transform.  All of the
- * transforms are specified with their Jacobians in the *Stan Reference Manual*
- * chapter Constraint Transforms.
+ * Return the unit length vector corresponding to the free vector y.
+ * This overload handles looping over the elements of a standard vector.
  *
- * @tparam Jacobian if `true`, increment log density accumulator with log
- * absolute Jacobian determinant of constraining transform
- * @tparam T A type inheriting from `Eigen::DenseBase` or a `var_value` with
- *  inner type inheriting from `Eigen::DenseBase` with compile time dynamic rows
- *  and 1 column
+ * @tparam T A standard vector with inner type inheriting from
+ * `Eigen::DenseBase` or a `var_value` with inner type inheriting from
+ * `Eigen::DenseBase` with compile time dynamic rows and 1 column
+ * @tparam Lp A pack that is either empty, or exactly one scalar type for the lp
+ * argument. The scalar type of T should be convertable to this.
  * @param y vector of K unrestricted variables
- * @param[in, out] lp log density accumulator
+ * @param[in, out] lp log density accumulator or empty
  * @return Unit length vector of dimension K
  */
-template <bool Jacobian, typename T, require_not_std_vector_t<T>* = nullptr>
-inline auto unit_vector_constrain(const T& y, return_type_t<T>& lp) {
-  if (Jacobian) {
-    return unit_vector_constrain(y, lp);
-  } else {
-    return unit_vector_constrain(y);
-  }
+template <typename T, typename... Lp, require_std_vector_t<T>* = nullptr>
+inline auto unit_vector_constrain(const T& y, Lp&... lp) {
+  static_assert(sizeof...(lp) == 0 || sizeof...(lp) == 1,
+                "unit_vector_constrain should be called with either "
+                "one or two arguments");
+  return apply_vector_unary<T>::apply(
+      y, [&lp...](auto&& v) { return unit_vector_constrain(v, lp...); });
 }
 
 /**
@@ -90,17 +87,23 @@ inline auto unit_vector_constrain(const T& y, return_type_t<T>& lp) {
  *
  * @tparam Jacobian if `true`, increment log density accumulator with log
  * absolute Jacobian determinant of constraining transform
- * @tparam T A standard vector with inner type inheriting from
- * `Eigen::DenseBase` or a `var_value` with inner type inheriting from
- * `Eigen::DenseBase` with compile time dynamic rows and 1 column
+ * @tparam T A type inheriting from `Eigen::DenseBase` or a `var_value` with
+ *  inner type inheriting from `Eigen::DenseBase` with compile time dynamic rows
+ *  and 1 column
+ * @tparam Lp A scalar type for the lp argument. The scalar type of T should be
+ * convertable to this.
  * @param y vector of K unrestricted variables
  * @param[in, out] lp log density accumulator
  * @return Unit length vector of dimension K
  */
-template <bool Jacobian, typename T, require_std_vector_t<T>* = nullptr>
-inline auto unit_vector_constrain(const T& y, return_type_t<T>& lp) {
-  return apply_vector_unary<T>::apply(
-      y, [&lp](auto&& v) { return unit_vector_constrain<Jacobian>(v, lp); });
+template <bool Jacobian, typename T, typename Lp,
+          require_convertible_t<return_type_t<T>, Lp>* = nullptr>
+inline auto unit_vector_constrain(const T& y, Lp& lp) {
+  if constexpr (Jacobian) {
+    return unit_vector_constrain(y, lp);
+  } else {
+    return unit_vector_constrain(y);
+  }
 }
 
 }  // namespace math
