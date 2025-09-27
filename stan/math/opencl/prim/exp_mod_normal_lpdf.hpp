@@ -46,7 +46,7 @@ return_type_t<T_y_cl, T_loc_cl, T_scale_cl, T_inv_scale_cl> exp_mod_normal_lpdf(
   using std::isnan;
 
   check_consistent_sizes(function, "Random variable", y, "Location parameter",
-                         mu, "Scale parameter", sigma, "Inv_scale paramter",
+                         mu, "Scale parameter", sigma, "Inv_scale parameter",
                          lambda);
   const size_t N = max_size(y, mu, sigma, lambda);
   if (N == 0) {
