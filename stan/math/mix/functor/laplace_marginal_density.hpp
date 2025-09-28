@@ -314,7 +314,9 @@ inline void set_zero_adjoint(Output&& output) {
             static_assert(
                 sizeof(std::decay_t<output_i_t>*) == 0,
                 "INTERNAL ERROR:(laplace_marginal_lpdf) set_zero_adjoints was "
-                "not able to deduce the actions needed for the given type.");
+                "not able to deduce the actions needed for the given type. "
+                "This is an internal error, please report it: "
+                "https://github.com/stan-dev/math/issues");
           }
         },
         std::forward<Output>(output));
@@ -359,7 +361,9 @@ inline void collect_adjoints(Output& output, Input&& input) {
           static_assert(
               sizeof(std::decay_t<output_i_t>*) == 0,
               "INTERNAL ERROR:(laplace_marginal_lpdf) set_zero_adjoints was "
-              "not able to deduce the actions needed for the given type.");
+              "not able to deduce the actions needed for the given type. "
+              "This is an internal error, please report it: "
+              "https://github.com/stan-dev/math/issues");
         }
       },
       std::forward<Output>(output), std::forward<Input>(input));
@@ -496,7 +500,7 @@ inline auto laplace_marginal_density_est(LLFun&& ll_fun, LLTupleArgs&& ll_args,
   };
   auto ll_args_vals = value_of(ll_args);
   const Eigen::Index theta_size = theta_0.size();
-  std::decay_t<ThetaVec> theta = theta_0;
+  Eigen::VectorXd theta = std::forward<ThetaVec>(theta_0);
   double objective_old = std::numeric_limits<double>::lowest();
   double objective_new = std::numeric_limits<double>::lowest() + 1;
   Eigen::VectorXd a_prev = Eigen::VectorXd::Zero(theta_size);
@@ -813,7 +817,9 @@ inline void collect_adjoints(Output&& output, Input&& input) {
           static_assert(
               sizeof(std::decay_t<output_i_t>*) == 0,
               "INTERNAL ERROR:(laplace_marginal_lpdf) set_zero_adjoints was "
-              "not able to deduce the actions needed for the given type.");
+              "not able to deduce the actions needed for the given type. "
+              "This is an internal error, please report it: "
+              "https://github.com/stan-dev/math/issues");
         }
       },
       std::forward<Output>(output), std::forward<Input>(input));
@@ -863,7 +869,9 @@ inline void copy_compute_s2(Output&& output, Input&& input) {
           static_assert(
               sizeof(std::decay_t<output_i_t>*) == 0,
               "INTERNAL ERROR:(laplace_marginal_lpdf) set_zero_adjoints was "
-              "not able to deduce the actions needed for the given type.");
+              "not able to deduce the actions needed for the given type. "
+              "This is an internal error, please report it: "
+              "https://github.com/stan-dev/math/issues");
         }
       },
       std::forward<Output>(output), std::forward<Input>(input));
@@ -920,11 +928,11 @@ template <typename Output, typename Input>
 inline void collect_adjoints(Output&& output, const vari* ret, Input&& input) {
   if constexpr (is_tuple_v<Output>) {
     static_assert(sizeof(std::decay_t<Output>*) == 0,
-                  "INTERNAL ERROR:(laplace_marginal_lpdf)"
+                  "INTERNAL ERROR:(laplace_marginal_lpdf) "
                   "Accumulate Adjoints called on a tuple, but tuples cannot be "
-                  "on the reverse mode stack!"
-                  "This is an internal error, please report it to the stan "
-                  "github as an issue.");
+                  "on the reverse mode stack! "
+                  "This is an internal error, please report it: "
+                  "https://github.com/stan-dev/math/issues");
   } else if constexpr (is_std_vector_v<Output>) {
     if constexpr (!is_var_v<value_type_t<Output>>) {
       const auto output_size = output.size();
@@ -1031,7 +1039,7 @@ inline auto laplace_marginal_density(const LLFun& ll_fun, LLTupleArgs&& ll_args,
     // Solver 3
     arena_t<Eigen::MatrixXd> LU_solve_covariance;
     // Solver 1, 2, 3
-    arena_t<promote_scalar_t<double, std::decay_t<ThetaVec>>> s2(
+    arena_t<promote_scalar_t<double, plain_type_t<std::decay_t<ThetaVec>>>> s2(
         theta_0.size());
     // Make one hard copy here
     using laplace_likelihood::internal::conditional_copy_and_promote;
