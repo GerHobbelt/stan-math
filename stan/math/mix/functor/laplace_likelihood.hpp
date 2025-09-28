@@ -1,7 +1,6 @@
 #ifndef STAN_MATH_MIX_FUNCTOR_LAPLACE_LIKELIHOOD_HPP
 #define STAN_MATH_MIX_FUNCTOR_LAPLACE_LIKELIHOOD_HPP
 
-// #include <stan/math/mix/laplace/hessian_times_vector.hpp>
 #include <stan/math/mix/functor/hessian_block_diag.hpp>
 #include <stan/math/prim/functor.hpp>
 #include <stan/math/prim/fun.hpp>
@@ -32,6 +31,10 @@ inline auto log_likelihood(F&& f, Theta&& theta, Stream* msgs, Args&&... args) {
                             std::forward<Args>(args)..., msgs);
 }
 
+/**
+ * Decide if object should be deep or shallow copied when
+ * using @ref conditional_copy_and_promote .
+ */
 enum class COPY_TYPE { SHALLOW = 0, DEEP = 1 };
 
 /**
@@ -55,12 +58,22 @@ inline auto conditional_copy_and_promote(Args&&... args) {
         if constexpr (is_tuple_v<decltype(arg)>) {
           return stan::math::apply(
               [](auto&&... inner_args) {
-                return partially_forward_as_tuple(
+                return make_holder_tuple(
                     conditional_copy_and_promote<Filter, PromotedType,
                                                  CopyType>(
                         std::forward<decltype(inner_args)>(inner_args))...);
               },
               std::forward<decltype(arg)>(arg));
+        } else if constexpr (is_std_vector_v<decltype(arg)>) {
+          std::vector<decltype(conditional_copy_and_promote<
+                               Filter, PromotedType, CopyType>(arg[0]))>
+              ret;
+          for (std::size_t i = 0; i < arg.size(); ++i) {
+            ret.push_back(
+                conditional_copy_and_promote<Filter, PromotedType, CopyType>(
+                    arg[i]));
+          }
+          return ret;
         } else {
           if constexpr (CopyType == COPY_TYPE::DEEP) {
             return stan::math::eval(promote_scalar<PromotedType>(
@@ -222,7 +235,6 @@ inline auto compute_s2(F&& f, Theta&& theta, AMat&& A,
       v(j) = 1;
     }
     w.setZero();
-    // TODO(Steve): Zip into Eigen indexing
     for (int j = 0; j < n_blocks; ++j) {
       for (int k = 0; k < hessian_block_size; ++k) {
         w(k + j * hessian_block_size)
@@ -281,12 +293,12 @@ inline auto diff_eta_implicit(F&& f, V_t&& v, Theta&& theta, Stream* msgs,
   }
   auto shallow_copy_args
       = shallow_copy_vargs<fvar<var>>(std::forward_as_tuple(args...));
-  fvar<var> f_fvar = stan::math::apply(
+  fvar<var> f_sum = stan::math::apply(
       [](auto&& f, auto&& theta_fvar, auto&& msgs, auto&&... inner_args) {
         return f(theta_fvar, inner_args..., msgs);
       },
       shallow_copy_args, f, theta_fvar, msgs);
-  grad(f_fvar.d_.vi_);
+  grad(f_sum.d_.vi_);
 }
 
 }  // namespace internal

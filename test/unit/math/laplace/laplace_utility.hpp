@@ -125,9 +125,17 @@ struct squared_kernel_functor {
   }
   template <typename T1, typename T2, typename T3>
   Eigen::Matrix<return_type_t<T1, T2, T3>, Eigen::Dynamic, Eigen::Dynamic>
-  operator()(const T1& x, std::tuple<T2, T3> arg1,
+  operator()(const T1& x, const std::tuple<T2, T3>& arg1,
              std::ostream* msgs = nullptr) const {
     return stan::math::gp_exp_quad_cov(x, std::get<0>(arg1), std::get<1>(arg1))
+           + 1e-9 * Eigen::MatrixXd::Identity(x.size(), x.size());
+  }
+  template <typename T1, typename T2, typename T3>
+  Eigen::Matrix<return_type_t<T1, T2, T3>, Eigen::Dynamic, Eigen::Dynamic>
+  operator()(const T1& x, const std::vector<std::tuple<T2, T3>>& arg1,
+             std::ostream* msgs = nullptr) const {
+    return stan::math::gp_exp_quad_cov(x, std::get<0>(arg1[0]),
+                                       std::get<1>(arg1[0]))
            + 1e-9 * Eigen::MatrixXd::Identity(x.size(), x.size());
   }
 };
@@ -215,6 +223,37 @@ Eigen::Matrix<T1, Eigen::Dynamic, Eigen::Dynamic> laplace_covariance(
   K(0, 1) = 0;
   K(1, 0) = 0;
   return K;
+}
+
+/**
+ * Helper function for printing out adjoints
+ */
+template <typename Output, require_t<is_any_var_scalar<Output>>* = nullptr>
+inline void print_adjoint(Output&& output) {
+  if constexpr (is_tuple_v<Output>) {
+    std::cout << "tuple adj\n";
+    return stan::math::for_each(
+        [](auto&& output_i) { return print_adjoint(output_i); }, output);
+  } else if constexpr (is_std_vector_v<Output>) {
+    if constexpr (is_var_v<value_type_t<Output>>) {
+      Eigen::Map<const Eigen::Matrix<var, -1, -1>> map_x(output.data(),
+                                                         output.size());
+      std::cout << "eigen adj: \n" << map_x.adj() << std::endl;
+    } else {
+      std::cout << "stdvec adjoint\n";
+      for (int i = 0; i < output.size(); ++i) {
+        print_adjoint(output[i]);
+      }
+    }
+  } else if constexpr (is_eigen_v<Output>) {
+    std::cout << "adj: \n" << output.adj() << std::endl;
+  } else if constexpr (is_stan_scalar_v<Output>) {
+    std::cout << "adj: " << output.adj() << std::endl;
+  } else {
+    static_assert(sizeof(Output*) == 0,
+                  "INTERNAL ERROR:(laplace_marginal_lpdf) print_adjoint was "
+                  "not able to deduce the actiopns needed for the given type.");
+  }
 }
 
 }  // namespace test

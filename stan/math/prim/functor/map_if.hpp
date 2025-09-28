@@ -2,7 +2,7 @@
 #define STAN_MATH_PRIM_FUNCTOR_MAP_IF_HPP
 
 #include <stan/math/prim/functor/apply.hpp>
-#include <stan/math/prim/functor/partially_forward_as_tuple.hpp>
+#include <stan/math/prim/functor/make_holder_tuple.hpp>
 #include <stan/math/prim/meta.hpp>
 #include <functional>
 #include <tuple>
@@ -11,19 +11,6 @@
 namespace stan {
 namespace math {
 namespace internal {
-
-template <bool FilterOn, typename F, typename... Types>
-struct c_is_nothrow_invocable;
-
-template <typename F, typename... Types>
-struct c_is_nothrow_invocable<false, F, Types...> : std::true_type {};
-template <typename F, typename... Types>
-struct c_is_nothrow_invocable<true, F, Types...>
-    : std::is_nothrow_invocable<F, Types...> {};
-
-template <bool FilterOn, typename F, typename... Types>
-inline constexpr bool c_is_nothrow_invocable_v
-    = c_is_nothrow_invocable<FilterOn, F, Types...>::value;
 
 template <template <typename...> class Filter, typename F, typename Arg>
 inline constexpr decltype(auto) filter_fun(F&& f, Arg&& arg) {
@@ -34,14 +21,9 @@ inline constexpr decltype(auto) filter_fun(F&& f, Arg&& arg) {
   }
 }
 
-template <template <typename...> class Filter, typename F, typename Arg>
-inline constexpr bool is_filter_fun_nothrow_v
-    = c_is_nothrow_invocable_v<Filter<Arg>::value, F, Arg>;
-
 }  // namespace internal
 
 /*
- * // TODO(Steve): This should be something like `map_if` or `transform_if`
  * Subset a tuple by a compile time filter on the types and return a
  * tuple with an unary functor applied to each element where the filter was
  * true:
@@ -60,7 +42,7 @@ template <template <typename...> class Filter, typename F, typename Tuple,
 inline constexpr auto map_if(F&& f, Tuple&& arg) {
   return stan::math::apply(
       [](auto&& f, auto&&... args) {
-        return partially_forward_as_tuple(internal::filter_fun<Filter>(
+        return make_holder_tuple(internal::filter_fun<Filter>(
             std::forward<decltype(f)>(f),
             std::forward<decltype(args)>(args))...);
       },
@@ -85,7 +67,7 @@ template <template <typename...> class Filter, typename F, typename Arg1,
           typename... Args,
           require_t<bool_constant<!is_tuple<Arg1>::value>>* = nullptr>
 inline constexpr auto map_if(F&& f, Arg1&& arg1, Args&&... args) {
-  return partially_forward_as_tuple(
+  return make_holder_tuple(
       internal::filter_fun<Filter>(f, std::forward<Arg1>(arg1)),
       internal::filter_fun<Filter>(f, std::forward<Args>(args))...);
 }
