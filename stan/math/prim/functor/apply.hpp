@@ -4,10 +4,24 @@
 #include <functional>
 #include <tuple>
 #include <utility>
-
+#include <iostream>
 namespace stan {
 namespace math {
 namespace internal {
+
+template <typename F, typename T, typename... Types>
+struct is_apply_nothrow;
+
+template <typename F, typename... TupleTypes, typename... Types>
+struct is_apply_nothrow<F, std::tuple<TupleTypes...>, Types...> {
+  static constexpr bool value
+      = (std::is_nothrow_invocable_v<std::decay_t<F>, Types..., TupleTypes...>);
+};
+
+template <typename F, typename T, typename... Types>
+inline constexpr bool is_apply_nothrow_v
+    = is_apply_nothrow<std::decay_t<F>, std::decay_t<T>, Types...>::value;
+
 /*
  * Invoke the functor f with arguments given in t and indexed in the index
  * sequence I with other arguments possibly before or after
@@ -24,12 +38,11 @@ namespace internal {
  * tuple.
  */
 template <class F, class Tuple, typename... PreArgs, std::size_t... I>
-constexpr decltype(auto) apply_impl(F&& f, Tuple&& t,
-                                    std::index_sequence<I...> i,
-                                    PreArgs&&... pre_args) {
-  return std::forward<F>(f)(
-      std::forward<PreArgs>(pre_args)...,
-      std::forward<decltype(std::get<I>(t))>(std::get<I>(t))...);
+inline constexpr decltype(auto) apply_impl(F&& f, Tuple&& t,
+                                           std::index_sequence<I...> /* i */,
+                                           PreArgs&&... pre_args) {
+  return std::forward<F>(f)(std::forward<PreArgs>(pre_args)...,
+                            std::get<I>(std::forward<Tuple>(t))...);
 }
 }  // namespace internal
 
@@ -49,12 +62,17 @@ constexpr decltype(auto) apply_impl(F&& f, Tuple&& t,
  * tuple.
  */
 template <class F, class Tuple, typename... PreArgs>
-constexpr decltype(auto) apply(F&& f, Tuple&& t, PreArgs&&... pre_args) {
+inline constexpr decltype(auto) apply(F&& f, Tuple&& t, PreArgs&&... pre_args) {
   return internal::apply_impl(
       std::forward<F>(f), std::forward<Tuple>(t),
       std::make_index_sequence<
           std::tuple_size<std::remove_reference_t<Tuple>>{}>{},
       std::forward<PreArgs>(pre_args)...);
+}
+
+template <typename F>
+inline constexpr std::tuple<> apply(F&& /* f */) noexcept {
+  return {};
 }
 
 }  // namespace math

@@ -13,15 +13,21 @@ struct nonexisting_adjoint {
     return *this;
   }
   template <typename T>
-  nonexisting_adjoint operator+=(T) {
+  nonexisting_adjoint operator+=(T) const {
     throw std::runtime_error(
         "internal::nonexisting_adjoint::operator+= should never be called! "
         "Please file a bug report.");
   }
   template <typename T>
-  nonexisting_adjoint operator-=(T) {
+  nonexisting_adjoint operator-=(T) const {
     throw std::runtime_error(
         "internal::nonexisting_adjoint::operator-= should never be called! "
+        "Please file a bug report.");
+  }
+
+  static inline nonexisting_adjoint array() {
+    throw std::runtime_error(
+        "internal::nonexisting_adjoint.array() should never be called! "
         "Please file a bug report.");
   }
 };
@@ -34,8 +40,47 @@ struct nonexisting_adjoint {
  * @return reference to `x`'s adjoint
  */
 template <typename T, require_var_t<T>* = nullptr>
-auto& adjoint_of(const T& x) {
+inline auto& adjoint_of(const T& x) noexcept {
   return x.adj();
+}
+
+template <typename T, require_var_t<T>* = nullptr>
+inline auto& get_adj(const T& x) noexcept {
+  return x.adj();
+}
+
+template <typename T, require_eigen_vt<is_var, T>* = nullptr>
+inline auto get_adj(const T& x) {
+  return x.adj();
+}
+
+template <typename T, require_st_var<T>* = nullptr,
+          require_std_vector_t<T>* = nullptr>
+inline auto get_adj(const T& x) {
+  std::vector<promote_scalar_t<double, value_type_t<T>>> res(x.size());
+  for (size_t i = 0; i < x.size(); ++i) {
+    res[i] = get_adj(x[i]);
+  }
+  return res;
+}
+
+template <typename T>
+inline auto get_adj2(const T& x) noexcept {
+  if constexpr (is_var<T>::value) {
+    return x.adj();
+  }
+  if constexpr (is_eigen<T>::value) {
+    return x.adj();
+  } else if constexpr (is_std_vector<T>::value) {
+    std::vector<promote_scalar_t<double, value_type_t<T>>> res(x.size());
+    for (size_t i = 0; i < x.size(); ++i) {
+      res[i] = get_adj2(x[i]);
+    }
+    return res;
+  } else if constexpr (is_tuple<T>::value) {
+    return stan::math::apply(
+        [](auto&&... args) { return std::make_tuple(get_adj2(args)...); }, x);
+  }
 }
 
 /**
