@@ -4,6 +4,7 @@
 #include <stan/math/prim/fun/Eigen.hpp>
 #include <stan/math/prim/meta/is_eigen.hpp>
 #include <stan/math/prim/meta/is_complex.hpp>
+#include <stan/math/prim/meta/holder.hpp>
 #include <stan/math/prim/meta/require_generics.hpp>
 #include <stan/math/prim/meta/is_vector.hpp>
 #include <stan/math/prim/meta/is_vector_like.hpp>
@@ -63,7 +64,8 @@ struct apply_scalar_unary<F, T, require_eigen_t<T>> {
     return make_holder(
         [](auto&& xx) {
           return std::forward<decltype(xx)>(xx).unaryExpr([](auto&& xxx) {
-            return apply_scalar_unary<F, decltype(xxx)>::apply(xxx);
+            return apply_scalar_unary<F, decltype(xxx)>::apply(
+                std::forward<decltype(xxx)>(xxx));
           });
         },
         std::forward<TT>(x));

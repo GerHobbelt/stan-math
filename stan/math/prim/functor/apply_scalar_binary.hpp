@@ -85,7 +85,12 @@ inline auto apply_scalar_binary(F&& f, T1&& x, T2&& y) {
       [](auto&& f_inner, auto&& x_inner, auto&& y_inner) {
         using int_vec_t = promote_scalar_t<value_type_t<decltype(y_inner)>,
                                            plain_type_t<decltype(x_inner)>>;
-        Eigen::Map<const int_vec_t> y_map(y_inner.data(), y_inner.size());
+        auto y_map = make_holder(
+            [](auto&& y_inner_) {
+              return Eigen::Map<const int_vec_t>(y_inner_.data(),
+                                                 y_inner_.size());
+            },
+            std::forward<decltype(y_inner)>(y_inner));
         return std::forward<decltype(x_inner)>(x_inner).binaryExpr(
             y_map, std::forward<decltype(f_inner)>(f_inner));
       },
@@ -113,7 +118,12 @@ inline auto apply_scalar_binary(F&& f, T1&& x, T2&& y) {
       [](auto&& f_inner, auto&& x_inner, auto&& y_inner) {
         using int_vec_t = promote_scalar_t<value_type_t<decltype(x_inner)>,
                                            plain_type_t<decltype(y_inner)>>;
-        Eigen::Map<const int_vec_t> x_map(x_inner.data(), x_inner.size());
+        auto x_map = make_holder(
+            [](auto&& x_inner_) {
+              return Eigen::Map<const int_vec_t>(x_inner_.data(),
+                                                 x_inner_.size());
+            },
+            std::forward<decltype(x_inner)>(x_inner));
         return x_map.binaryExpr(std::forward<decltype(y_inner)>(y_inner),
                                 std::forward<decltype(f_inner)>(f_inner));
       },
@@ -263,10 +273,10 @@ template <typename F, typename T1, typename T2,
           require_all_std_vector_vt<is_stan_scalar, T1, T2>* = nullptr>
 inline auto apply_scalar_binary(F&& f, T1&& x, T2&& y) {
   check_matching_sizes("Binary function", "x", x, "y", y);
+  using T_return = std::decay_t<decltype(f(x[0], y[0]))>;
   decltype(auto) x_vec = as_column_vector_or_scalar(std::forward<T1>(x));
   decltype(auto) y_vec = as_column_vector_or_scalar(std::forward<T2>(y));
-  using T_return = std::decay_t<decltype(f(x[0], y[0]))>;
-  std::vector<T_return> result(x.size());
+  std::vector<T_return> result(x_vec.size());
   Eigen::Map<Eigen::Matrix<T_return, -1, 1>>(result.data(), result.size())
       = x_vec.binaryExpr(y_vec, std::forward<F>(f));
   return result;
@@ -296,7 +306,7 @@ template <typename F, typename T1, typename T2,
 inline auto apply_scalar_binary(F&& f, T1&& x, T2&& y) {
   decltype(auto) x_vec = as_column_vector_or_scalar(std::forward<T1>(x));
   using T_return = std::decay_t<decltype(f(x[0], y))>;
-  std::vector<T_return> result(x.size());
+  std::vector<T_return> result(x_vec.size());
   Eigen::Map<Eigen::Matrix<T_return, -1, 1>>(result.data(), result.size())
       = x_vec.unaryExpr(
           [f_ = std::forward<F>(f), y](auto&& v) { return f_(v, y); });
@@ -325,9 +335,9 @@ template <typename F, typename T1, typename T2,
           require_stan_scalar_t<T1>* = nullptr,
           require_std_vector_vt<is_stan_scalar, T2>* = nullptr>
 inline auto apply_scalar_binary(F&& f, T1&& x, T2&& y) {
-  decltype(auto) y_vec = as_column_vector_or_scalar(y);
   using T_return = std::decay_t<decltype(f(x, y[0]))>;
-  std::vector<T_return> result(y.size());
+  decltype(auto) y_vec = as_column_vector_or_scalar(std::forward<T2>(y));
+  std::vector<T_return> result(y_vec.size());
   Eigen::Map<Eigen::Matrix<T_return, -1, 1>>(result.data(), result.size())
       = y_vec.unaryExpr(
           [f_ = std::forward<F>(f), x](auto&& v) { return f_(x, v); });

@@ -25,11 +25,7 @@ inline auto round(T&& x) {
 struct round_fun {
   template <typename T>
   static inline auto fun(T&& x) {
-    if constexpr (std::is_arithmetic_v<std::decay_t<T>>) {
-      return std::round(x);
-    } else {
-      return round(std::forward<T>(x));
-    }
+    return round(std::forward<T>(x));
   }
 };
 
@@ -62,8 +58,7 @@ template <typename Container,
           require_container_st<std::is_arithmetic, Container>* = nullptr>
 inline auto round(Container&& x) {
   return apply_vector_unary<Container>::apply(
-      std::forward<Container>(x),
-      [](const auto& v) { return v.array().round(); });
+      std::forward<Container>(x), [](auto&& v) { return v.array().round(); });
 }
 
 }  // namespace math
