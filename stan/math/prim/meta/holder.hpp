@@ -102,6 +102,19 @@ struct traits<stan::math::Holder<ArgType, Ptrs...>> {
 }  // namespace Eigen
 
 namespace stan {
+namespace internal {
+template <typename T>
+struct is_holder : std::false_type {};
+template <typename ArgType, typename... Ptrs>
+struct is_holder<stan::math::Holder<ArgType, Ptrs...>> : std::true_type {};
+}  // namespace internal
+
+template <typename T>
+struct is_holder : internal::is_holder<std::decay_t<T>> {};
+
+template <typename T>
+inline constexpr bool is_holder_v = is_holder<T>::value;
+
 namespace math {
 
 /**
@@ -346,9 +359,9 @@ auto make_holder_impl(const F& func, std::index_sequence<Is...>,
  * @param args arguments for the functor
  * @return `holder` referencing expression constructed by given functor
  */
-template <typename F, typename... Args,
-          require_not_plain_type_t<
-              decltype(std::declval<F>()(std::declval<Args&>()...))>* = nullptr>
+template <
+    typename F, typename... Args,
+    require_not_plain_type_t<std::invoke_result_t<F, Args&&...>>* = nullptr>
 auto make_holder(const F& func, Args&&... args) {
   return internal::make_holder_impl(func,
                                     std::make_index_sequence<sizeof...(Args)>(),
@@ -366,8 +379,7 @@ auto make_holder(const F& func, Args&&... args) {
  * @return `holder` referencing expression constructed by given functor
  */
 template <typename F, typename... Args,
-          require_plain_type_t<
-              decltype(std::declval<F>()(std::declval<Args&>()...))>* = nullptr>
+          require_plain_type_t<std::invoke_result_t<F, Args&&...>>* = nullptr>
 auto make_holder(const F& func, Args&&... args) {
   return func(std::forward<Args>(args)...);
 }
