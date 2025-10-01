@@ -55,7 +55,7 @@ return_type_t<T_prob_cl> bernoulli_lpmf(const T_n_cl& n,
   auto check_n_bounded = check_cl(function, "n", n, "in the interval [0, 1]");
   auto n_bounded_expr = 0 <= n && n <= 1;
 
-  if (is_theta_vector) {
+  if constexpr (is_theta_vector) {
     auto logp_expr
         = colwise_sum(select(n == 1, log(theta_val), log1p(-theta_val)));
     auto deriv_expr = inv(theta_val + select(n == 1, 0, -1));
@@ -68,8 +68,7 @@ return_type_t<T_prob_cl> bernoulli_lpmf(const T_n_cl& n,
     matrix_cl<double> deriv_cl;
 
     results(logp_cl, deriv_cl, check_n_bounded, check_theta_bounded)
-        = expressions(logp_expr,
-                      calc_if<is_autodiff_v<T_prob_cl>>(deriv_expr),
+        = expressions(logp_expr, calc_if<is_autodiff_v<T_prob_cl>>(deriv_expr),
                       n_bounded_expr, theta_bounded_expr);
 
     logp = sum(from_matrix_cl(logp_cl));

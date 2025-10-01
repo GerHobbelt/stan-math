@@ -101,8 +101,8 @@ return_type_t<T_x, T_beta, T_cuts> ordered_logistic_glm_lpmf(
   const auto& x_val = to_ref_if<is_autodiff_v<T_beta>>(value_of(x_ref));
   const auto& beta_val = value_of(beta_ref);
 
-  const auto& beta_val_vec = to_ref_if<is_autodiff_v<T_x>>(
-      as_column_vector_or_scalar(beta_val));
+  const auto& beta_val_vec
+      = to_ref_if<is_autodiff_v<T_x>>(as_column_vector_or_scalar(beta_val));
 
   scalar_seq_view<T_y_ref> y_seq(y_ref);
   Array<T_cuts_partials, Dynamic, 1> cuts_y1(N_instances), cuts_y2(N_instances);
@@ -175,7 +175,7 @@ return_type_t<T_x, T_beta, T_cuts> ordered_logistic_glm_lpmf(
     if constexpr (is_any_autodiff_v<T_x, T_beta>) {
       Matrix<T_partials_return, 1, Dynamic> location_derivative = d1 - d2;
       if constexpr (is_autodiff_v<T_x>) {
-        if (T_x_rows == 1) {
+        if constexpr (T_x_rows == 1) {
           edge<0>(ops_partials).partials_
               = beta_val_vec * location_derivative.sum();
         } else {
@@ -184,7 +184,7 @@ return_type_t<T_x, T_beta, T_cuts> ordered_logistic_glm_lpmf(
         }
       }
       if constexpr (is_autodiff_v<T_beta>) {
-        if (T_x_rows == 1) {
+        if constexpr (T_x_rows == 1) {
           edge<1>(ops_partials).partials_
               = (location_derivative * x_val.replicate(N_instances, 1))
                     .transpose();

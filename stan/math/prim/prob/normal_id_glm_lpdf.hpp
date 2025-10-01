@@ -95,7 +95,8 @@ return_type_t<T_y, T_x, T_alpha, T_beta, T_scale> normal_id_glm_lpdf(
   if (size_zero(y, sigma)) {
     return 0;
   }
-  if constexpr (!include_summand<propto, T_y, T_x, T_alpha, T_beta, T_scale>::value) {
+  if constexpr (!include_summand<propto, T_y, T_x, T_alpha, T_beta,
+                                 T_scale>::value) {
     return 0;
   }
 
@@ -111,8 +112,8 @@ return_type_t<T_y, T_x, T_alpha, T_beta, T_scale> normal_id_glm_lpdf(
 
   const auto& y_val_vec = as_column_vector_or_scalar(y_val);
   const auto& alpha_val_vec = as_column_vector_or_scalar(alpha_val);
-  const auto& beta_val_vec = to_ref_if<is_autodiff_v<T_x>>(
-      as_column_vector_or_scalar(beta_val));
+  const auto& beta_val_vec
+      = to_ref_if<is_autodiff_v<T_x>>(as_column_vector_or_scalar(beta_val));
 
   T_scale_val inv_sigma = 1.0 / as_array_or_scalar(sigma_val_vec);
 
@@ -120,7 +121,7 @@ return_type_t<T_y, T_x, T_alpha, T_beta, T_scale> normal_id_glm_lpdf(
   T_partials_return y_scaled_sq_sum;
 
   Array<T_partials_return, Dynamic, 1> y_scaled(N_instances);
-  if (T_x_rows == 1) {
+  if constexpr (T_x_rows == 1) {
     T_y_scaled_tmp y_scaled_tmp
         = forward_as<T_y_scaled_tmp>((x_val * beta_val_vec).coeff(0, 0));
     y_scaled = (as_array_or_scalar(y_val_vec) - y_scaled_tmp
@@ -146,7 +147,7 @@ return_type_t<T_y, T_x, T_alpha, T_beta, T_scale> normal_id_glm_lpdf(
       }
     }
     if constexpr (is_autodiff_v<T_x>) {
-      if (T_x_rows == 1) {
+      if constexpr (T_x_rows == 1) {
         edge<1>(ops_partials).partials_
             = forward_as<Array<T_partials_return, Dynamic, T_x_rows>>(
                 beta_val_vec * sum(mu_derivative));
@@ -156,7 +157,7 @@ return_type_t<T_y, T_x, T_alpha, T_beta, T_scale> normal_id_glm_lpdf(
       }
     }
     if constexpr (is_autodiff_v<T_beta>) {
-      if (T_x_rows == 1) {
+      if constexpr (T_x_rows == 1) {
         edge<3>(ops_partials).partials_
             = forward_as<Matrix<T_partials_return, 1, Dynamic>>(
                 mu_derivative.sum() * x_val);
