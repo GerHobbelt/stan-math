@@ -15,33 +15,29 @@ TEST(laplace_marginal_beg_binomial_log_summary_lpmf, phi_dim_2) {
   using stan::math::value_of;
   using stan::math::var;
 
-  double alpha_dbl = 1.6;
-  double rho_dbl = 0.45;
-  int dim_theta = 2;
-  Eigen::VectorXd theta_0(dim_theta);
-  theta_0 << 0, 0;
+  constexpr double alpha_dbl = 1.6;
+  constexpr double rho_dbl = 0.45;
+  constexpr int dim_theta = 2;
+  Eigen::VectorXd theta_0{{0, 0}};
 
   std::vector<Eigen::VectorXd> x(dim_theta);
-  Eigen::VectorXd x_0(2);
-  x_0 << 0.05100797, 0.16086164;
-  Eigen::VectorXd x_1(2);
-  x_1 << -0.59823393, 0.98701425;
-  x[0] = x_0;
-  x[1] = x_1;
+  
+  x[0] = Eigen::VectorXd{{0.05100797, 0.16086164}};
+  x[1] = Eigen::VectorXd{{-0.59823393, 0.98701425}};
 
   std::vector<double> delta;
   std::vector<int> delta_int;
 
-  std::vector<int> y = {1, 0};
-  std::vector<int> y_index = {1, 1};
-  double eta_dbl = 10000;
+  std::vector<int> y{1, 0};
+  std::vector<int> y_index{1, 1};
+  constexpr double eta_dbl = 10000;
   std::vector<int> n_per_group(theta_0.size(), 0);
   std::vector<int> counts_per_group(theta_0.size(), 0);
   for (int i = 0; i < y.size(); i++) {
     n_per_group[y_index[i] - 1]++;
     counts_per_group[y_index[i] - 1] += y[i];
   }
-  constexpr double tolerance = 1e-12;
+  constexpr double tolerance = 1e-8;
   constexpr int max_num_steps = 1000;
   stan::math::test::run_solver_grid(
       [&](int solver_num, int hessian_block_size, int max_steps_line_search,

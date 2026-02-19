@@ -142,7 +142,7 @@ struct f13 {
  * @param v variable
  * @return adjoint of var
  */
-double get_adjoint_if_var(stan::math::var v) { return v.adj(); }
+inline double get_adjoint_if_var(stan::math::var v) { return v.adj(); }
 
 /*
  * If the argument is not a var, return a NaN
@@ -150,7 +150,7 @@ double get_adjoint_if_var(stan::math::var v) { return v.adj(); }
  * @param v variable
  * @return NaN
  */
-double get_adjoint_if_var(double v) {
+inline double get_adjoint_if_var(double v) {
   return std::numeric_limits<double>::quiet_NaN();
 }
 
@@ -197,12 +197,12 @@ double get_adjoint_if_var(double v) {
  * limit (not used if T_b is not var)
  */
 template <typename T_a, typename T_b, typename T_theta, typename F>
-void test_derivatives(const F &f, double a, double b,
-                      std::vector<double> thetas,
-                      const std::vector<double> &x_r,
-                      const std::vector<int> &x_i, double val,
-                      std::vector<double> grad, double d_a = 0.0,
-                      double d_b = 0.0) {
+inline void test_derivatives(const F &f, double a, double b,
+                             std::vector<double> thetas,
+                             const std::vector<double> &x_r,
+                             const std::vector<int> &x_i, double val,
+                             std::vector<double> grad, double d_a = 0.0,
+                             double d_b = 0.0) {
   using stan::math::value_of;
   using stan::math::var;
 
@@ -222,15 +222,15 @@ void test_derivatives(const F &f, double a, double b,
                                             tolerance);
     integral.grad();
     EXPECT_LE(std::abs(val - integral.val()), tolerance);
-    if (stan::is_var<T_theta>::value) {
+    if constexpr (stan::is_var<T_theta>::value) {
       for (size_t i = 0; i < grad.size(); ++i)
         EXPECT_LE(std::abs(grad[i] - get_adjoint_if_var(thetas_[i])),
                   tolerance);
     }
-    if (stan::is_var<T_a>::value) {
+    if constexpr (stan::is_var<T_a>::value) {
       EXPECT_LE(std::abs(d_a - get_adjoint_if_var(a_)), tolerance);
     }
-    if (stan::is_var<T_b>::value) {
+    if constexpr (stan::is_var<T_b>::value) {
       EXPECT_LE(std::abs(d_b - get_adjoint_if_var(b_)), tolerance);
     }
   }
