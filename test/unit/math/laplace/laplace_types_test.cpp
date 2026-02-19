@@ -95,16 +95,18 @@ TEST(laplace, theta_0_as_expression_issue_3196) {
           y, stan::math::add(stan::math::add(offset, alpha),
                              stan::math::multiply(X, beta))),
       cov_fun(), std::tuple<double, int>(sigmaz, N),
-      stan::math::rep_vector(0.0, N), tolerance, max_num_steps,
-      hessian_block_size, solver_num, max_steps_line_search, nullptr));
+      std::tuple{stan::math::rep_vector(0.0, N), tolerance, max_num_steps,
+                 hessian_block_size, solver_num, max_steps_line_search, 1},
+      nullptr));
   auto arena_init = stan::math::to_arena(stan::math::rep_vector(0.0, N));
   EXPECT_NO_THROW(stan::math::laplace_marginal_tol<false>(
       poisson_re_log_ll(),
       std::tuple<const std::vector<int>&, Eigen::Matrix<double, -1, 1>>(
           y, stan::math::add(stan::math::add(offset, alpha),
                              stan::math::multiply(X, beta))),
-      cov_fun(), std::tuple<double, int>(sigmaz, N), arena_init, tolerance,
-      max_num_steps, hessian_block_size, solver_num, max_steps_line_search,
+      cov_fun(), std::tuple(sigmaz, N),
+      std::make_tuple(arena_init, tolerance, max_num_steps, hessian_block_size,
+                      solver_num, max_steps_line_search, true),
       nullptr));
 }
 
@@ -133,17 +135,17 @@ TEST_P(laplace_types, poisson_log_phi_dim_2_tuple_extended) {
 
   std::vector<int> n_samples = {1, 1};
   std::vector<int> sums = {1, 0};
-  const auto [solver_num, hessian_block_size, max_steps_line_search]
-      = GetParam();
+  const auto test_params = GetParam();
+  const auto solver_num = std::get<0>(test_params);
+  const auto hessian_block_size = std::get<1>(test_params);
+  const auto max_steps_line_search = std::get<2>(test_params);
   LAPLACE_SKIP_IF_INVALID_TEST_COMBO(hessian_block_size, dim_theta);
-  LAPLACE_SKIP_ZERO_STEPS(max_steps_line_search);
 
   constexpr double tolerance = 1e-12;
   constexpr int max_num_steps = 1000;
   using stan::is_var_v;
   using stan::scalar_type_t;
   using stan::math::test::laplace_issue;
-  constexpr std::array known_issues{laplace_issue{0, 0, 0}};
   constexpr stan::test::ad_tolerances tols{
       stan::test::ad_gradient_tols{1e-8, 1e-2}};
   //  stan::test::ad_tolerances tols;
@@ -156,8 +158,9 @@ TEST_P(laplace_types, poisson_log_phi_dim_2_tuple_extended) {
           std::forward_as_tuple(sums, eta1_tuple, eta2, eta3),
           stan::math::test::squared_kernel_functor{},
           std::forward_as_tuple(x, std::make_tuple(phi_dbl(0), phi_dbl(1))),
-          theta_0, tolerance, max_num_steps, hessian_block_size, solver_num,
-          max_steps_line_search, nullptr);
+          std::make_tuple(theta_0, tolerance, max_num_steps, hessian_block_size,
+                          solver_num, max_steps_line_search, true),
+          &output_stream);
     } catch (const std::exception& e) {
       std::stringstream fail_msg;
       using stan::math::test::test_type_name;
@@ -200,17 +203,17 @@ TEST_P(laplace_types, poisson_log_phi_dim_2_tuple) {
 
   std::vector<int> n_samples = {1, 1};
   std::vector<int> sums = {1, 0};
-  const auto [solver_num, hessian_block_size, max_steps_line_search]
-      = GetParam();
+  const auto test_params = GetParam();
+  const auto solver_num = std::get<0>(test_params);
+  const auto hessian_block_size = std::get<1>(test_params);
+  const auto max_steps_line_search = std::get<2>(test_params);
   LAPLACE_SKIP_IF_INVALID_TEST_COMBO(hessian_block_size, dim_theta);
-  LAPLACE_SKIP_ZERO_STEPS(max_steps_line_search);
 
   constexpr double tolerance = 1e-12;
   constexpr int max_num_steps = 1000;
   using stan::is_var_v;
   using stan::scalar_type_t;
   using stan::math::test::laplace_issue;
-  constexpr std::array known_issues{laplace_issue{0, 0, 0}};
   constexpr stan::test::ad_tolerances tols{
       stan::test::ad_gradient_tols{1e-8, 1e-3}};
   //  stan::test::ad_tolerances tols;
@@ -220,9 +223,10 @@ TEST_P(laplace_types, poisson_log_phi_dim_2_tuple) {
       return laplace_marginal_tol<false>(
           poisson_log_likelihood2{}, std::forward_as_tuple(sums),
           stan::math::test::squared_kernel_functor{},
-          std::forward_as_tuple(x_v, std::make_tuple(alpha, rho)), theta_0,
-          tolerance, max_num_steps, hessian_block_size, solver_num,
-          max_steps_line_search, nullptr);
+          std::forward_as_tuple(x_v, std::make_tuple(alpha, rho)),
+          std::make_tuple(theta_0, tolerance, max_num_steps, hessian_block_size,
+                          solver_num, max_steps_line_search, true),
+          &output_stream);
     } catch (const std::exception& e) {
       std::stringstream fail_msg;
       using stan::math::test::test_type_name;
@@ -242,8 +246,9 @@ TEST_P(laplace_types, poisson_log_phi_dim_2_tuple) {
           std::forward_as_tuple(sums, std::make_tuple(eta1, eta2)),
           stan::math::test::squared_kernel_functor{},
           std::forward_as_tuple(x, std::make_tuple(alpha_rho(0), alpha_rho(1))),
-          theta_0, tolerance, max_num_steps, hessian_block_size, solver_num,
-          max_steps_line_search, nullptr);
+          std::make_tuple(theta_0, tolerance, max_num_steps, hessian_block_size,
+                          solver_num, max_steps_line_search, true),
+          &output_stream);
     } catch (const std::exception& e) {
       std::stringstream fail_msg;
       using stan::math::test::test_type_name;
@@ -295,17 +300,17 @@ TEST_P(laplace_types, poisson_log_phi_dim_2_array_tuple) {
 
   std::vector<int> n_samples = {1, 1};
   std::vector<int> sums = {1, 0};
-  const auto [solver_num, hessian_block_size, max_steps_line_search]
-      = GetParam();
+  const auto test_params = GetParam();
+  const auto solver_num = std::get<0>(test_params);
+  const auto hessian_block_size = std::get<1>(test_params);
+  const auto max_steps_line_search = std::get<2>(test_params);
   LAPLACE_SKIP_IF_INVALID_TEST_COMBO(hessian_block_size, dim_theta);
-  LAPLACE_SKIP_ZERO_STEPS(max_steps_line_search);
 
   constexpr double tolerance = 1e-12;
   constexpr int max_num_steps = 1000;
   using stan::is_var_v;
   using stan::scalar_type_t;
   using stan::math::test::laplace_issue;
-  constexpr std::array known_issues{laplace_issue{0, 0, 0}};
   constexpr stan::test::ad_tolerances tols{
       stan::test::ad_gradient_tols{1e-8, 1e-3}};
   //  stan::test::ad_tolerances tols;
@@ -323,9 +328,10 @@ TEST_P(laplace_types, poisson_log_phi_dim_2_array_tuple) {
           poisson_log_likelihood_array_tuple{},
           std::forward_as_tuple(sums, eta_tuple),
           stan::math::test::squared_kernel_functor{},
-          std::forward_as_tuple(x, alpha_tuple), theta_0, tolerance,
-          max_num_steps, hessian_block_size, solver_num, max_steps_line_search,
-          nullptr);
+          std::forward_as_tuple(x, alpha_tuple),
+          std::make_tuple(theta_0, tolerance, max_num_steps, hessian_block_size,
+                          solver_num, max_steps_line_search, true),
+          &output_stream);
     } catch (const std::exception& e) {
       std::stringstream fail_msg;
       using stan::math::test::test_type_name;

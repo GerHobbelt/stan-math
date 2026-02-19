@@ -22,10 +22,12 @@ TEST_P(laplace_marginal_bernoulli_logit_lpmf, phi_dim500) {
   using stan::math::var;
   using stan::math::test::flag_test;
   constexpr int dim_theta = 500;
-  const auto [solver_num, hessian_block_size, max_steps_line_search]
-      = GetParam();
+  const auto test_params = GetParam();
+  const auto solver_num = std::get<0>(test_params);
+  const auto hessian_block_size = std::get<1>(test_params);
+  const auto max_steps_line_search = std::get<2>(test_params);
   LAPLACE_SKIP_IF_INVALID_TEST_COMBO(hessian_block_size, dim_theta);
-  LAPLACE_SKIP_ZERO_STEPS(max_steps_line_search);
+  // LAPLACE_SKIP_ZERO_STEPS(max_steps_line_search);
 
   auto x1 = stan::test::laplace::x1;
   auto x2 = stan::test::laplace::x2;
@@ -55,9 +57,10 @@ TEST_P(laplace_marginal_bernoulli_logit_lpmf, phi_dim500) {
     try {
       return laplace_marginal_tol_bernoulli_logit_lpmf(
           y, n_samples, mean, sqr_exp_kernel_functor{},
-          std::forward_as_tuple(x, alpha, rho), theta_0, tolerance,
-          max_num_steps, hessian_block_size, solver_num, max_steps_line_search,
-          nullptr);
+          std::forward_as_tuple(x, alpha, rho),
+          std::make_tuple(theta_0, tolerance, max_num_steps, hessian_block_size,
+                          solver_num, max_steps_line_search, true),
+          &output_stream);
     } catch (const std::exception& e) {
       std::stringstream fail_msg;
       using stan::math::test::test_type_name;

@@ -33,10 +33,11 @@ TEST_P(laplace_marginal_neg_binomial_log_lpmf, phi_dim_2) {
   std::vector<int> y{1, 0};
   std::vector<int> y_index{1, 2};
   constexpr double eta_dbl = 100;
-  const auto [solver_num, hessian_block_size, max_steps_line_search]
-      = GetParam();
+  const auto test_params = GetParam();
+  const auto solver_num = std::get<0>(test_params);
+  const auto hessian_block_size = std::get<1>(test_params);
+  const auto max_steps_line_search = std::get<2>(test_params);
   LAPLACE_SKIP_IF_INVALID_TEST_COMBO(hessian_block_size, dim_theta);
-  LAPLACE_SKIP_ZERO_STEPS(max_steps_line_search);
 
   constexpr double tolerance = 1e-12;
   constexpr int max_num_steps = 1000;
@@ -46,9 +47,10 @@ TEST_P(laplace_marginal_neg_binomial_log_lpmf, phi_dim_2) {
     try {
       return laplace_marginal_tol_neg_binomial_2_log_lpmf(
           y, y_index, eta, 0, stan::math::test::squared_kernel_functor{},
-          std::forward_as_tuple(x, alpha, rho), theta_0, tolerance,
-          max_num_steps, hessian_block_size, solver_num, max_steps_line_search,
-          nullptr);
+          std::forward_as_tuple(x, alpha, rho),
+          std::make_tuple(theta_0, tolerance, max_num_steps, hessian_block_size,
+                          solver_num, max_steps_line_search, true),
+          &output_stream);
     } catch (const std::exception& e) {
       std::stringstream fail_msg;
       using stan::math::test::test_type_name;
@@ -72,15 +74,12 @@ TEST_P(laplace_disease_map_test, laplace_marginal_neg_binomial_2_log_lpmf) {
   using stan::math::to_vector;
   using stan::math::value_of;
   using stan::math::var;
-  const auto [solver_num, hessian_block_size, max_steps_line_search]
-      = GetParam();
+  const auto test_params = GetParam();
+  const auto solver_num = std::get<0>(test_params);
+  const auto hessian_block_size = std::get<1>(test_params);
+  const auto max_steps_line_search = std::get<2>(test_params);
   LAPLACE_SKIP_IF_INVALID_TEST_COMBO(hessian_block_size, dim_theta);
-  LAPLACE_SKIP_ZERO_STEPS(max_steps_line_search);
   constexpr double eta = 1;
-
-  double marginal_density = laplace_marginal_neg_binomial_2_log_lpmf(
-      y, y_index, eta, mean, stan::math::test::sqr_exp_kernel_functor(),
-      std::forward_as_tuple(x, phi_dbl(0), phi_dbl(1)), nullptr);
 
   // TODO(charlesm93): get benchmark from GPStuff or another software.
   constexpr double tolerance = 1e-12;
@@ -88,17 +87,20 @@ TEST_P(laplace_disease_map_test, laplace_marginal_neg_binomial_2_log_lpmf) {
   auto smoke = [&](auto&& alpha, auto&& rho, auto&& eta_arg) {
     return laplace_marginal_tol_neg_binomial_2_log_lpmf(
         y, y_index, eta_arg, mean, stan::math::test::sqr_exp_kernel_functor{},
-        std::forward_as_tuple(x, alpha, rho), theta_0, tolerance, max_num_steps,
-        hessian_block_size, solver_num, max_steps_line_search, nullptr);
+        std::forward_as_tuple(x, alpha, rho),
+        std::make_tuple(theta_0, tolerance, max_num_steps, hessian_block_size,
+                        solver_num, max_steps_line_search, true),
+        &output_stream);
   };
   smoke(phi_dbl[0], phi_dbl[1], eta);
   auto f = [&](auto&& alpha, auto&& rho, auto&& eta_arg) {
     try {
       return laplace_marginal_tol_neg_binomial_2_log_lpmf(
           y, y_index, eta_arg, mean, stan::math::test::sqr_exp_kernel_functor{},
-          std::forward_as_tuple(x, alpha, rho), theta_0, tolerance,
-          max_num_steps, hessian_block_size, solver_num, max_steps_line_search,
-          nullptr);
+          std::forward_as_tuple(x, alpha, rho),
+          std::make_tuple(theta_0, tolerance, max_num_steps, hessian_block_size,
+                          solver_num, max_steps_line_search, true),
+          &output_stream);
     } catch (const std::exception& e) {
       std::stringstream fail_msg;
       using stan::math::test::test_type_name;

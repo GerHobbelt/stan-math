@@ -259,10 +259,38 @@ constexpr const char* test_type_name() {
 }  // namespace stan
 
 class LaplaceAdTest
-    : public ::testing::TestWithParam<std::tuple<int, int, int>> {};
+    : public ::testing::TestWithParam<std::tuple<int, int, int>> {
+ public:
+  std::stringstream output_stream;
+  /**
+   * Prints a count and internal warnings that happen in each test
+   */
+  void TearDown() override {
+    std::string output = output_stream.str();
+    if (output.length() > 0) {
+      std::istringstream stream(output);
+      std::string line;
+      std::unordered_map<std::string, int> line_counts;
+
+      while (std::getline(stream, line)) {
+        if (line_counts.find(line) != line_counts.end()) {
+          line_counts[line]++;
+        } else {
+          line_counts.insert({line, 1});
+        }
+      }
+      for (const auto& pair : line_counts) {
+        std::cout << "[ WARN_MSG ] ";
+        std::cout << " (count: " << pair.second << "): ";
+        std::cout << pair.first << std::endl;
+      }
+      output_stream.str("");
+    }
+  }
+};
 
 // Nice readable per-case names: Solver{n}_Block{b}_LS{steps}
-static std::string ParamName(
+inline std::string ParamName(
     const ::testing::TestParamInfo<std::tuple<int, int, int>>& info) {
   const auto& [solver, hblock, ls] = info.param;
   std::ostringstream os;
@@ -320,10 +348,6 @@ class laplace_disease_map_test : public LaplaceAdTest {
 
     theta_0 = Eigen::VectorXd::Zero(dim_theta);
     mean = Eigen::VectorXd::Zero(dim_theta);
-    dim_phi = 2;
-    phi_dbl.resize(dim_phi);
-    phi_dbl << 0.3162278, 200;  // variance, length scale
-
     delta_lk.resize(2 * n_observations);
     y_index.resize(dim_theta);
     for (int i = 0; i < n_observations; i++) {
@@ -348,8 +372,7 @@ class laplace_disease_map_test : public LaplaceAdTest {
 
   Eigen::VectorXd theta_0;
   Eigen::VectorXd mean;
-  int dim_phi;
-  Eigen::Matrix<double, -1, 1> phi_dbl;
+  Eigen::Matrix<double, -1, 1> phi_dbl{{0.3162278, 200}};
   Eigen::Matrix<double, -1, 1> eta_dummy_dbl;
 
   Eigen::VectorXd delta_lk;

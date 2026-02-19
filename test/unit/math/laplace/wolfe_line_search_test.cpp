@@ -292,7 +292,7 @@ struct LineSearchHarness {
     };
     std::ostream* msgs = nullptr;
     auto update_step = [&](auto& step_info, auto&& curr, auto&& prev,
-                           auto& eval_in, auto&& p) {
+                           auto& eval_in, auto&& p) -> void {
       stan::math::set_zero_all_adjoints();
       step_info.a() = info.prev_.a() + eval_in.alpha() * p;
       step_info.theta() = covariance * step_info.a();
@@ -621,10 +621,6 @@ TEST(WolfeLineSearch, CurvatureEqualityAccepted) {
   EXPECT_EQ(status.stop_, WolfeReturn::Wolfe)
       << "Expected Wolfe but wolfe returned "
       << stan::math::internal::wolfe_status_str(status);
-
-  auto [p, dir0] = initial_direction(obj, before);
-  double dir_alpha = directional_derivative(obj, info.curr_.a(), p);
-  //  EXPECT_GE(harness.opt.c2 * std::abs(dir0), std::abs(dir_alpha));
 }
 
 // Checks that gradients for ll_args propagate when the Wolfe step succeeds.
@@ -675,9 +671,6 @@ TEST(WolfeLineSearch, DirectionalDerivativeSignFlipImprovesObjective) {
 
   auto status = harness.run(info, obj);
   EXPECT_NE(status.stop_, WolfeReturn::Fail);
-  double phi0 = obj(before.prev_.a(), before.prev_.theta());
-  double phi_alpha = obj(info.curr_.a(), info.curr_.theta());
-  //  EXPECT_GT(phi_alpha, phi0);
 }
 
 // Checks that non-identity covariance produces consistent theta.
@@ -790,39 +783,39 @@ TEST(WolfeLineSearch, HonorsMaxAlphaBound) {
 
 // Checks that the cubic-or-bisect chooser returns an interior maximiser.
 TEST(CubicOrBisect, ReturnsInteriorMaximiser) {
-  using stan::math::internal::cubic_or_bisect_max;
+  using stan::math::internal::cubic_spline;
   double a = 0.0;
   double b = 1.0;
   double fa = 0.0;
   double fb = -1.0;
   double fpa = 1.0;
   double fpb = -0.5;
-  double alpha = cubic_or_bisect_max(a, fa, fpa, b, fb, fpb);
+  double alpha = cubic_spline(a, fa, fpa, b, fb, fpb);
   EXPECT_GT(alpha, a);
   EXPECT_LT(alpha, b);
 }
 
 // Checks that the chooser falls back to the midpoint on non-finite data.
 TEST(CubicOrBisect, FallsBackToMidpointOnNonfinite) {
-  using stan::math::internal::cubic_or_bisect_max;
-  double alpha = cubic_or_bisect_max(
-      0.0, std::numeric_limits<double>::quiet_NaN(), 1.0, 1.0, -1.0, -0.5);
+  using stan::math::internal::cubic_spline;
+  double alpha = cubic_spline(0.0, std::numeric_limits<double>::quiet_NaN(),
+                              1.0, 1.0, -1.0, -0.5);
   EXPECT_DOUBLE_EQ(alpha, 0.5);
 }
 
 // Checks that the chooser moves right when the right endpoint improves.
 TEST(CubicOrBisect, MovesRightWhenRightImproves) {
-  using stan::math::internal::cubic_or_bisect_max;
+  using stan::math::internal::cubic_spline;
   double a = 0.0;
   double fa = 0.0;
   double fpa = 1.0;
   double b1 = 1.0;
   double fb1 = -1.0;
   double fpb = -0.5;
-  double alpha1 = cubic_or_bisect_max(a, fa, fpa, b1, fb1, fpb);
+  double alpha1 = cubic_spline(a, fa, fpa, b1, fb1, fpb);
   double b2 = 1.0;
   double fb2 = -0.1;  // improved right endpoint
-  double alpha2 = cubic_or_bisect_max(a, fa, fpa, b2, fb2, fpb);
+  double alpha2 = cubic_spline(a, fa, fpa, b2, fb2, fpb);
   EXPECT_GT(alpha2, alpha1);
 }
 

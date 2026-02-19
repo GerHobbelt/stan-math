@@ -119,7 +119,6 @@ class laplace_motorcyle_gp_test : public LaplaceAdTest {
   }
 
   static constexpr int n_obs{133};
-  static constexpr int dim_phi{4};
   std::vector<double> x{stan::test::laplace::moto::x};
   Eigen::VectorXd y{stan::test::laplace::moto::y};
 
@@ -141,19 +140,21 @@ TEST_P(laplace_motorcyle_gp_test, gp_motorcycle_val) {
   using stan::math::laplace_marginal_tol;
   constexpr double tolerance = 1e-12;
   constexpr int max_num_steps = 1000;
-  const auto [solver_num, hessian_block_size, max_steps_line_search]
-      = GetParam();
+  const auto test_params = GetParam();
+  const auto solver_num = std::get<0>(test_params);
+  const auto hessian_block_size = std::get<1>(test_params);
+  const auto max_steps_line_search = std::get<2>(test_params);
   constexpr int dim_theta = 2 * n_obs;
   LAPLACE_SKIP_IF_INVALID_TEST_COMBO(hessian_block_size, dim_theta);
-  LAPLACE_SKIP_ZERO_STEPS(max_steps_line_search);
 
-  double target = laplace_marginal_tol<false>(
+  laplace_marginal_tol<false>(
       normal_likelihood{}, std::forward_as_tuple(y, n_obs),
       covariance_motorcycle_functor{},
       std::forward_as_tuple(x, phi_dbl(0), phi_dbl(1), phi_dbl(2), phi_dbl(3),
                             n_obs),
-      theta0, tolerance, max_num_steps, hessian_block_size, solver_num,
-      max_steps_line_search, nullptr);
+      std::make_tuple(theta0, tolerance, max_num_steps, hessian_block_size,
+                      solver_num, max_steps_line_search, true),
+      &output_stream);
 }
 
 TEST_P(laplace_motorcyle_gp_test, gp_motorcycle_ad) {
@@ -169,11 +170,12 @@ TEST_P(laplace_motorcyle_gp_test, gp_motorcycle_ad) {
   auto phi_1 = phi_dbl(1);
   Eigen::VectorXd phi_rest = phi_dbl.tail(2);
   Eigen::VectorXd phi_01{{phi_0, phi_1}};
-  const auto [solver_num, hessian_block_size, max_steps_line_search]
-      = GetParam();
+  const auto test_params = GetParam();
+  const auto solver_num = std::get<0>(test_params);
+  const auto hessian_block_size = std::get<1>(test_params);
+  const auto max_steps_line_search = std::get<2>(test_params);
   constexpr int dim_theta = 2 * n_obs;
   LAPLACE_SKIP_IF_INVALID_TEST_COMBO(hessian_block_size, dim_theta);
-  LAPLACE_SKIP_ZERO_STEPS(max_steps_line_search);
   constexpr stan::test::ad_tolerances tols{
       stan::test::ad_gradient_tols{1e-8, 1e-1}};
   auto f = [&](auto&& phi_01_v, auto&& phi_rest_v) {
@@ -183,8 +185,9 @@ TEST_P(laplace_motorcyle_gp_test, gp_motorcycle_ad) {
           covariance_motorcycle_functor{},
           std::forward_as_tuple(x, phi_01_v(0), phi_01_v(1), phi_rest_v(0),
                                 phi_rest_v(1), n_obs),
-          theta0, tolerance, max_num_steps, hessian_block_size, solver_num,
-          max_steps_line_search, nullptr);
+          std::make_tuple(theta0, tolerance, max_num_steps, hessian_block_size,
+                          solver_num, max_steps_line_search, true),
+          &output_stream);
     } catch (const std::exception& e) {
       std::stringstream fail_msg;
       using stan::math::test::test_type_name;
@@ -198,7 +201,7 @@ TEST_P(laplace_motorcyle_gp_test, gp_motorcycle_ad) {
   };
   try {
     stan::test::expect_ad<true>(tols, f, phi_01, phi_rest);
-  } catch (const std::domain_error e) {
+  } catch (const std::domain_error& e) {
     ADD_FAILURE() << "Exception: " << e.what()
                   << "\n\tsolver_num: " << solver_num
                   << "\n\tmax_steps_line_search: " << max_steps_line_search
@@ -245,18 +248,20 @@ TEST_P(laplace_motorcyle_gp_test, gp_motorcycle2_val) {
   Eigen::VectorXd sigma_vec = phi_dbl.tail(2);
   constexpr double tolerance = 1e-12;
   constexpr int max_num_steps = 300;
-  const auto [solver_num, hessian_block_size, max_steps_line_search]
-      = GetParam();
+  const auto test_params = GetParam();
+  const auto solver_num = std::get<0>(test_params);
+  const auto hessian_block_size = std::get<1>(test_params);
+  const auto max_steps_line_search = std::get<2>(test_params);
   constexpr int dim_theta = 2 * n_obs;
   LAPLACE_SKIP_IF_INVALID_TEST_COMBO(hessian_block_size, dim_theta);
-  LAPLACE_SKIP_ZERO_STEPS(max_steps_line_search);
-  double target = laplace_marginal_tol<false>(
+  laplace_marginal_tol<false>(
       normal_likelihood2{}, std::forward_as_tuple(y, n_obs, sigma_global),
       covariance_motorcycle_functor{},
       std::forward_as_tuple(x, length_scale_f, length_scale_g, sigma_f, sigma_g,
                             n_obs),
-      theta0, tolerance, max_num_steps, hessian_block_size, solver_num,
-      max_steps_line_search, nullptr);
+      std::make_tuple(theta0, tolerance, max_num_steps, hessian_block_size,
+                      solver_num, max_steps_line_search, true),
+      &output_stream);
 }
 
 TEST_P(laplace_motorcyle_gp_test, gp_motorcycle2_ad) {
@@ -272,11 +277,12 @@ TEST_P(laplace_motorcyle_gp_test, gp_motorcycle2_ad) {
   constexpr int max_num_steps = 1000;
   Eigen::VectorXd length_scale_vec = phi_dbl.head(2);
   Eigen::VectorXd sigma_vec = phi_dbl.tail(2);
-  const auto [solver_num, hessian_block_size, max_steps_line_search]
-      = GetParam();
+  const auto test_params = GetParam();
+  const auto solver_num = std::get<0>(test_params);
+  const auto hessian_block_size = std::get<1>(test_params);
+  const auto max_steps_line_search = std::get<2>(test_params);
   constexpr int dim_theta = 2 * n_obs;
   LAPLACE_SKIP_IF_INVALID_TEST_COMBO(hessian_block_size, dim_theta);
-  LAPLACE_SKIP_ZERO_STEPS(max_steps_line_search);
   constexpr stan::test::ad_tolerances tols{
       stan::test::ad_gradient_tols{1e-8, 1e-1}};
   auto f = [&](auto&& sigma_global_v, auto&& length_scale_v, auto&& sigma_v) {
@@ -286,8 +292,9 @@ TEST_P(laplace_motorcyle_gp_test, gp_motorcycle2_ad) {
           covariance_motorcycle_functor{},
           std::forward_as_tuple(x, length_scale_v(0), length_scale_v(1),
                                 sigma_v(0), sigma_v(1), n_obs),
-          theta0, tolerance, max_num_steps, hessian_block_size, solver_num,
-          max_steps_line_search, nullptr);
+          std::make_tuple(theta0, tolerance, max_num_steps, hessian_block_size,
+                          solver_num, max_steps_line_search, true),
+          &output_stream);
     } catch (const std::exception& e) {
       std::stringstream fail_msg;
       using stan::math::test::test_type_name;
